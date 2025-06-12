@@ -1,0 +1,14 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const word_list_controller_1 = require("../controllers/word-list.controller");
+const auth_middleware_1 = require("../middlewares/auth.middleware");
+const express_2 = require("../utils/express");
+const router = (0, express_1.Router)();
+router.use(auth_middleware_1.authMiddleware);
+router.post('/', (0, express_2.withAuth)(word_list_controller_1.WordListController.createWordList));
+router.get('/', (0, express_2.withAuth)(word_list_controller_1.WordListController.getWordLists));
+router.get('/:id', (0, express_2.withAuth)(word_list_controller_1.WordListController.getWordList));
+router.put('/:id', (0, express_2.withAuth)(word_list_controller_1.WordListController.updateWordList));
+router.delete('/:id', (0, express_2.withAuth)(word_list_controller_1.WordListController.deleteWordList));
+exports.default = router;

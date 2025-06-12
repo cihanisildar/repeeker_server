@@ -1,0 +1,13 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const test_session_controller_1 = require("../controllers/test-session.controller");
+const auth_middleware_1 = require("../middlewares/auth.middleware");
+const express_2 = require("../utils/express");
+const router = (0, express_1.Router)();
+router.use(auth_middleware_1.authMiddleware);
+router.post('/', (0, express_2.withAuth)(test_session_controller_1.TestSessionController.createTestSession));
+router.get('/', (0, express_2.withAuth)(test_session_controller_1.TestSessionController.getTestSessions));
+router.get('/:id', (0, express_2.withAuth)(test_session_controller_1.TestSessionController.getTestSession));
+router.post('/:sessionId/results', (0, express_2.withAuth)(test_session_controller_1.TestSessionController.submitTestResult));
+exports.default = router;
