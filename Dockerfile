@@ -13,6 +13,9 @@ RUN npm install
 # Copy source code
 COPY . .
 
+# Set proper permissions
+RUN chmod -R 755 /app
+
 # Build TypeScript code
 RUN npm run build
 
