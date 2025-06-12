@@ -8,7 +8,7 @@ import { logger } from './utils/logger';
 import routes from './routes';
 
 const app = express();
-const port = process.env.PORT || 3001;
+const port = process.env.PORT || 8080;
 
 // Middlewares
 app.use(helmet());
