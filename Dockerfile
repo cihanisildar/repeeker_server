@@ -1,6 +1,9 @@
 # Use Node.js LTS version
 FROM node:20-slim
 
+# Install OpenSSL and other required dependencies
+RUN apt-get update && apt-get install -y openssl libssl1.1 && rm -rf /var/lib/apt/lists/*
+
 # Create app directory
 WORKDIR /app
 
