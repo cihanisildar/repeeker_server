@@ -2,14 +2,7 @@ import { Request, Response } from 'express';
 import { authService } from '../services/auth.service';
 import { logger } from '../utils/logger';
 import { sendResponse } from '../utils/response';
-
-interface AuthRequest extends Request {
-  user?: {
-    id: string;
-    email: string;
-  };
-}
-
+import { AuthenticatedRequest } from '@/types/express';
 export const AuthController = {
   async register(req: Request, res: Response) {
     try {
@@ -33,7 +26,7 @@ export const AuthController = {
     }
   },
 
-  async getCurrentUser(req: AuthRequest, res: Response) {
+  async getCurrentUser(req: AuthenticatedRequest, res: Response) {
     try {
       const userId = req.user?.id;
       if (!userId) {

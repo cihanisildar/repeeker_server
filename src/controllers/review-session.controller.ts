@@ -2,16 +2,11 @@ import { Request, Response } from 'express';
 import { reviewSessionService } from '../services/review-session.service';
 import { logger } from '../utils/logger';
 import { sendResponse } from '../utils/response';
+import { AuthenticatedRequest } from '@/types/express';
 
-interface AuthRequest extends Request {
-  user?: {
-    id: string;
-    email: string;
-  };
-}
 
 export const ReviewSessionController = {
-  async createReviewSession(req: AuthRequest, res: Response) {
+  async createReviewSession(req: AuthenticatedRequest, res: Response) {
     try {
       if (!req.user) {
         return sendResponse(res, null, 'error', 'Not authenticated', 401);
@@ -38,7 +33,7 @@ export const ReviewSessionController = {
     }
   },
 
-  async completeReviewSession(req: AuthRequest, res: Response) {
+  async completeReviewSession(req: AuthenticatedRequest, res: Response) {
     try {
       if (!req.user) {
         return sendResponse(res, null, 'error', 'Not authenticated', 401);
@@ -58,7 +53,7 @@ export const ReviewSessionController = {
     }
   },
 
-  async getReviewSessions(req: AuthRequest, res: Response) {
+  async getReviewSessions(req: AuthenticatedRequest, res: Response) {
     try {
       if (!req.user) {
         return sendResponse(res, null, 'error', 'Not authenticated', 401);

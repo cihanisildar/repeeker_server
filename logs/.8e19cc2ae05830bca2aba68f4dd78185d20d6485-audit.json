@@ -1,0 +1,15 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 14
+    },
+    "auditLog": "C:\\Users\\PC\\Desktop\\repeeker_server\\logs\\.8e19cc2ae05830bca2aba68f4dd78185d20d6485-audit.json",
+    "files": [
+        {
+            "date": 1749847734020,
+            "name": "C:\\Users\\PC\\Desktop\\repeeker_server\\logs\\combined-2025-06-13.log",
+            "hash": "21b705d2f54a78ff9bdd31603cb572e40ab94e86b80f2ec5810a9f5de902887e"
+        }
+    ],
+    "hashType": "sha256"
+}

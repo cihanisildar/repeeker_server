@@ -2,16 +2,10 @@ import { Request, Response } from 'express';
 import { testSessionService } from '../services/test-session.service';
 import { logger } from '../utils/logger';
 import { sendResponse } from '../utils/response';
-
-interface AuthRequest extends Request {
-  user?: {
-    id: string;
-    email: string;
-  };
-}
+import { AuthenticatedRequest } from '@/types/express';
 
 export const TestSessionController = {
-  async createTestSession(req: AuthRequest, res: Response) {
+  async createTestSession(req: AuthenticatedRequest, res: Response) {
     try {
       if (!req.user) {
         return sendResponse(res, null, 'error', 'Not authenticated', 401);
@@ -25,7 +19,7 @@ export const TestSessionController = {
     }
   },
 
-  async getTestSessions(req: AuthRequest, res: Response) {
+  async getTestSessions(req: AuthenticatedRequest, res: Response) {
     try {
       if (!req.user) {
         return sendResponse(res, null, 'error', 'Not authenticated', 401);
@@ -39,7 +33,7 @@ export const TestSessionController = {
     }
   },
 
-  async getTestSession(req: AuthRequest, res: Response) {
+  async getTestSession(req: AuthenticatedRequest, res: Response) {
     try {
       if (!req.user) {
         return sendResponse(res, null, 'error', 'Not authenticated', 401);
@@ -59,7 +53,7 @@ export const TestSessionController = {
     }
   },
 
-  async submitTestResult(req: AuthRequest, res: Response) {
+  async submitTestResult(req: AuthenticatedRequest, res: Response) {
     try {
       if (!req.user) {
         return sendResponse(res, null, 'error', 'Not authenticated', 401);

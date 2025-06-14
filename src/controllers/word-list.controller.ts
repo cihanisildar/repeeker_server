@@ -2,16 +2,10 @@ import { Request, Response } from 'express';
 import { wordListService } from '../services/word-list.service';
 import { logger } from '../utils/logger';
 import { sendResponse } from '../utils/response';
-
-interface AuthRequest extends Request {
-  user?: {
-    id: string;
-    email: string;
-  };
-}
+import { AuthenticatedRequest } from '@/types/express';
 
 export const WordListController = {
-  async createWordList(req: AuthRequest, res: Response) {
+  async createWordList(req: AuthenticatedRequest, res: Response) {
     try {
       if (!req.user) {
         return sendResponse(res, null, 'error', 'Not authenticated', 401);
@@ -31,7 +25,7 @@ export const WordListController = {
     }
   },
 
-  async getWordLists(req: AuthRequest, res: Response) {
+  async getWordLists(req: AuthenticatedRequest, res: Response) {
     try {
       if (!req.user) {
         return sendResponse(res, null, 'error', 'Not authenticated', 401);
@@ -45,7 +39,7 @@ export const WordListController = {
     }
   },
 
-  async getWordList(req: AuthRequest, res: Response) {
+  async getWordList(req: AuthenticatedRequest, res: Response) {
     try {
       if (!req.user) {
         return sendResponse(res, null, 'error', 'Not authenticated', 401);
@@ -65,7 +59,7 @@ export const WordListController = {
     }
   },
 
-  async updateWordList(req: AuthRequest, res: Response) {
+  async updateWordList(req: AuthenticatedRequest, res: Response) {
     try {
       if (!req.user) {
         return sendResponse(res, null, 'error', 'Not authenticated', 401);
@@ -90,7 +84,7 @@ export const WordListController = {
     }
   },
 
-  async deleteWordList(req: AuthRequest, res: Response) {
+  async deleteWordList(req: AuthenticatedRequest, res: Response) {
     try {
       if (!req.user) {
         return sendResponse(res, null, 'error', 'Not authenticated', 401);

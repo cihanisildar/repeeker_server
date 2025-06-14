@@ -2,16 +2,10 @@ import { Request, Response } from 'express';
 import { streakService } from '../services/streak.service';
 import { logger } from '../utils/logger';
 import { sendResponse } from '../utils/response';
-
-interface AuthRequest extends Request {
-  user?: {
-    id: string;
-    email: string;
-  };
-}
+import { AuthenticatedRequest } from '@/types/express';
 
 export const StreakController = {
-  async getStreak(req: AuthRequest, res: Response) {
+  async getStreak(req: AuthenticatedRequest, res: Response) {
     try {
       if (!req.user) {
         return sendResponse(res, null, 'error', 'Not authenticated', 401);
@@ -25,7 +19,7 @@ export const StreakController = {
     }
   },
 
-  async updateStreak(req: AuthRequest, res: Response) {
+  async updateStreak(req: AuthenticatedRequest, res: Response) {
     try {
       if (!req.user) {
         return sendResponse(res, null, 'error', 'Not authenticated', 401);
