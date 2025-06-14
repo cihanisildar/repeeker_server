@@ -49,7 +49,11 @@ app.use(morgan('dev'));
 
 // Routes
 app.use('/api', routes);
-
+// Also add a simple test endpoint
+app.get('/test', (req, res) => {
+  console.log('=== TEST ENDPOINT HIT ===');
+  res.json({ message: 'Server is working', timestamp: new Date().toISOString() });
+});
 // Error handling
 app.use(errorMiddleware);
 
