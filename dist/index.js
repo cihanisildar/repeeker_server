@@ -12,16 +12,33 @@ const error_middleware_1 = require("./middlewares/error.middleware");
 const logger_1 = require("./utils/logger");
 const routes_1 = __importDefault(require("./routes"));
 const app = (0, express_1.default)();
-const port = process.env.PORT || 3001;
+const port = process.env.PORT || 8080;
 // Middlewares
 app.use((0, helmet_1.default)());
 app.use((0, cors_1.default)({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+    origin: (origin, callback) => {
+        console.log('=== CORS DEBUG ===');
+        console.log('Request origin:', origin);
+        console.log('CORS_ORIGIN env var:', process.env.CORS_ORIGIN);
+        console.log('Allowed origins:', process.env.CORS_ORIGIN || 'http://localhost:3000');
+        const allowedOrigin = process.env.CORS_ORIGIN || 'http://localhost:3000';
+        // Allow requests with no origin (mobile apps, curl, Postman, etc.)
+        if (!origin) {
+            console.log('No origin - allowing');
+            return callback(null, true);
+        }
+        if (origin === allowedOrigin) {
+            console.log('Origin matches - allowing');
+            return callback(null, true);
+        }
+        console.log('Origin does not match - blocking');
+        callback(new Error(`CORS policy violation. Origin ${origin} not allowed`));
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
     exposedHeaders: ['Content-Range', 'X-Content-Range'],
-    maxAge: 86400, // 24 hours
+    maxAge: 86400,
     preflightContinue: false,
     optionsSuccessStatus: 204
 }));
