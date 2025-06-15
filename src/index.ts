@@ -16,37 +16,7 @@ const port = parseInt(process.env.PORT || "8080", 10);
 app.use(helmet());
 app.use(
   cors({
-    origin: (origin, callback) => {
-      console.log("=== CORS DEBUG ===");
-      console.log("Request origin:", origin);
-      console.log("CORS_ORIGIN env var:", process.env.CORS_ORIGIN);
-      
-      const allowedOrigins = [
-        "http://localhost:3000",
-        "https://www.repeeker.com",
-        "https://repeeker.com",
-        "https://www.repeeker.com.railway.app",
-        process.env.CORS_ORIGIN
-      ].filter(Boolean);
-      
-      console.log("Allowed origins:", allowedOrigins);
-
-      // Allow requests with no origin
-      if (!origin) {
-        console.log("No origin - allowing");
-        return callback(null, true);
-      }
-
-      if (allowedOrigins.includes(origin)) {
-        console.log("Origin matches - allowing");
-        return callback(null, true);
-      }
-
-      console.log("Origin does not match - blocking");
-      callback(
-        new Error(`CORS policy violation. Origin ${origin} not allowed`)
-      );
-    },
+    origin: true,
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: [
@@ -72,14 +42,14 @@ app.get("/", (req, res) => {
     status: "OK",
     message: "Repeeker Server is running",
     timestamp: new Date().toISOString(),
-    port: port
+    port: port,
   });
 });
 
 app.get("/health", (req, res) => {
   res.status(200).json({
     status: "healthy",
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -89,7 +59,7 @@ app.get("/test", (req, res) => {
     message: "Server is working",
     timestamp: new Date().toISOString(),
     origin: req.headers.origin,
-    cors_origin: process.env.CORS_ORIGIN
+    cors_origin: process.env.CORS_ORIGIN,
   });
 });
 
@@ -103,7 +73,7 @@ app.use(errorMiddleware);
 app.listen(port, "0.0.0.0", () => {
   console.log(`=== SERVER STARTED ===`);
   console.log(`Port: ${port}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
   console.log(`CORS Origin: ${process.env.CORS_ORIGIN}`);
   console.log(`Listening on 0.0.0.0:${port}`);
   logger.info(`Server is running on port ${port}`);
