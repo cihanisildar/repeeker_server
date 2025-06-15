@@ -25,6 +25,7 @@ app.use(
         "http://localhost:3000",
         "https://www.repeeker.com",
         "https://repeeker.com",
+        "https://www.repeeker.com.railway.app",
         process.env.CORS_ORIGIN
       ].filter(Boolean);
       
