@@ -1,28 +1,79 @@
 import { testSessionRepository } from '../repositories/test-session.repository';
 import { cardService } from './card.service';
-import { logger } from '../utils/logger';
+import { createModuleLogger } from '../utils/logger';
+
+const testSessionLogger = createModuleLogger('TESTSESSION');
 
 export const testSessionService = {
   async createTestSession(userId: string) {
-    return testSessionRepository.create(userId);
+    testSessionLogger.info('Creating test session', { userId });
+    
+    try {
+      const session = await testSessionRepository.create(userId);
+      testSessionLogger.info('Test session created successfully', { sessionId: session.id, userId });
+      return session;
+    } catch (error) {
+      testSessionLogger.error('Failed to create test session', { 
+        userId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      throw error;
+    }
   },
 
   async getTestSessions(userId: string) {
-    return testSessionRepository.findMany(userId);
+    testSessionLogger.debug('Fetching test sessions', { userId });
+    
+    try {
+      const sessions = await testSessionRepository.findMany(userId);
+      testSessionLogger.debug('Test sessions fetched successfully', { userId, count: sessions.length });
+      return sessions;
+    } catch (error) {
+      testSessionLogger.error('Failed to fetch test sessions', { 
+        userId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      throw error;
+    }
   },
 
   async getTestHistory(userId: string) {
-    return testSessionRepository.findTestHistory(userId);
+    testSessionLogger.debug('Fetching test history', { userId });
+    
+    try {
+      const history = await testSessionRepository.findTestHistory(userId);
+      testSessionLogger.debug('Test history fetched successfully', { userId, count: history?.sessions?.length || 'N/A' });
+      return history;
+    } catch (error) {
+      testSessionLogger.error('Failed to fetch test history', { 
+        userId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      throw error;
+    }
   },
 
   async getTestSession(id: string, userId: string) {
-    const testSession = await testSessionRepository.findById(id, userId);
+    testSessionLogger.debug('Fetching test session by ID', { sessionId: id, userId });
+    
+    try {
+      const testSession = await testSessionRepository.findById(id, userId);
 
-    if (!testSession) {
-      throw new Error('Test session not found');
+      if (!testSession) {
+        testSessionLogger.warn('Test session not found', { sessionId: id, userId });
+        throw new Error('Test session not found');
+      }
+
+      testSessionLogger.debug('Test session found', { sessionId: id, userId });
+      return testSession;
+    } catch (error) {
+      testSessionLogger.error('Failed to fetch test session', { 
+        sessionId: id,
+        userId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      throw error;
     }
-
-    return testSession;
   },
 
   async submitTestResult(data: {
@@ -32,7 +83,7 @@ export const testSessionService = {
     timeSpent: number;
     userId: string;
   }) {
-    logger.info('Submitting test result:', {
+    testSessionLogger.info('Submitting test result', {
       sessionId: data.sessionId,
       cardId: data.cardId,
       isCorrect: data.isCorrect,
@@ -40,22 +91,43 @@ export const testSessionService = {
       userId: data.userId
     });
 
-    const testSession = await testSessionRepository.findById(data.sessionId, data.userId);
+    try {
+      const testSession = await testSessionRepository.findById(data.sessionId, data.userId);
 
-    if (!testSession) {
-      throw new Error('Test session not found');
-    }
+      if (!testSession) {
+        testSessionLogger.warn('Test session not found for result submission', { 
+          sessionId: data.sessionId, 
+          userId: data.userId 
+        });
+        throw new Error('Test session not found');
+      }
 
-    const [testResult] = await Promise.all([
-      testSessionRepository.createTestResult({
+      const [testResult] = await Promise.all([
+        testSessionRepository.createTestResult({
+          sessionId: data.sessionId,
+          cardId: data.cardId,
+          isCorrect: data.isCorrect,
+          timeSpent: data.timeSpent,
+        }),
+        cardService.updateCardProgress(data.userId, data.cardId, data.isCorrect),
+      ]);
+
+      testSessionLogger.info('Test result submitted successfully', { 
         sessionId: data.sessionId,
         cardId: data.cardId,
-        isCorrect: data.isCorrect,
-        timeSpent: data.timeSpent,
-      }),
-      cardService.updateCardProgress(data.userId, data.cardId, data.isCorrect),
-    ]);
+        userId: data.userId,
+        isCorrect: data.isCorrect
+      });
 
-    return testResult;
+      return testResult;
+    } catch (error) {
+      testSessionLogger.error('Failed to submit test result', { 
+        sessionId: data.sessionId,
+        cardId: data.cardId,
+        userId: data.userId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      throw error;
+    }
   },
 }; 

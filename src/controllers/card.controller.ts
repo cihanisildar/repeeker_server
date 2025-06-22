@@ -1,24 +1,35 @@
 import { Response } from 'express';
 import { cardService } from '../services/card.service';
-import { logger } from '../utils/logger';
+import { createModuleLogger } from '../utils/logger';
 import { sendResponse } from '../utils/response';
 import { AuthenticatedRequest } from '../types/express';
 import { Request } from 'express';
 
+const cardControllerLogger = createModuleLogger('CARD_CONTROLLER');
+
 export const CardController = {
   async createCard(req: AuthenticatedRequest, res: Response) {
+    const userId = req.user.id;
+    const { word, definition, wordListId, wordDetails } = req.body;
+    cardControllerLogger.info('Create card request received', { userId, word, wordListId });
+    
     try {
-      const { word, definition, wordListId, wordDetails } = req.body;
       const card = await cardService.createCard({
         word,
         definition,
-        userId: req.user.id,
+        userId,
         wordListId,
         wordDetails,
       });
+      cardControllerLogger.info('Card created successfully', { userId, cardId: card.id, word });
       return sendResponse(res, card, 'success', 'Card created successfully', 201);
     } catch (error) {
-      logger.error('Create card error:', error);
+      cardControllerLogger.error('Failed to create card', { 
+        userId,
+        word,
+        wordListId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
       
       // Handle unique constraint error
       if (error instanceof Error && error.message.includes('Unique constraint failed')) {
@@ -30,182 +41,288 @@ export const CardController = {
   },
 
   async getCards(req: AuthenticatedRequest, res: Response) {
+    const userId = req.user.id;
+    const { wordListId } = req.query;
+    cardControllerLogger.debug('Get cards request received', { userId, wordListId });
+    
     try {
-      const { wordListId } = req.query;
-      const cards = await cardService.getCards(req.user.id, wordListId as string);
+      const cards = await cardService.getCards(userId, wordListId as string);
+      cardControllerLogger.debug('Cards retrieved successfully', { userId, wordListId });
       return sendResponse(res, cards, 'success', 'Cards retrieved successfully');
     } catch (error) {
-      logger.error('Get cards error:', error);
+      cardControllerLogger.error('Failed to get cards', { 
+        userId,
+        wordListId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
       return sendResponse(res, null, 'error', error instanceof Error ? error.message : 'Failed to get cards', 500);
     }
   },
 
   async getCard(req: AuthenticatedRequest, res: Response) {
+    const userId = req.user.id;
+    const { id } = req.params;
+    cardControllerLogger.debug('Get card request received', { userId, cardId: id });
+    
     try {
-      const { id } = req.params;
-      const card = await cardService.getCard(id, req.user.id);
+      const card = await cardService.getCard(id, userId);
 
       if (!card) {
+        cardControllerLogger.warn('Card not found', { userId, cardId: id });
         return sendResponse(res, null, 'error', 'Card not found', 404);
       }
 
+      cardControllerLogger.debug('Card retrieved successfully', { userId, cardId: id });
       return sendResponse(res, card, 'success', 'Card retrieved successfully');
     } catch (error) {
-      logger.error('Get card error:', error);
+      cardControllerLogger.error('Failed to get card', { 
+        userId,
+        cardId: id,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
       return sendResponse(res, null, 'error', error instanceof Error ? error.message : 'Failed to get card', 500);
     }
   },
 
   async updateCard(req: AuthenticatedRequest, res: Response) {
+    const userId = req.user.id;
+    const { id } = req.params;
+    const { word, definition, wordDetails } = req.body;
+    cardControllerLogger.info('Update card request received', { userId, cardId: id, word });
+    
     try {
-      const { id } = req.params;
-      const { word, definition, wordDetails } = req.body;
-
-      const card = await cardService.updateCard(id, req.user.id, {
+      const card = await cardService.updateCard(id, userId, {
         word,
         definition,
         wordDetails,
       });
 
       if (!card) {
+        cardControllerLogger.warn('Card not found for update', { userId, cardId: id });
         return sendResponse(res, null, 'error', 'Card not found', 404);
       }
 
+      cardControllerLogger.info('Card updated successfully', { userId, cardId: id });
       return sendResponse(res, card, 'success', 'Card updated successfully');
     } catch (error) {
-      logger.error('Update card error:', error);
+      cardControllerLogger.error('Failed to update card', { 
+        userId,
+        cardId: id,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
       return sendResponse(res, null, 'error', error instanceof Error ? error.message : 'Failed to update card', 500);
     }
   },
 
   async deleteCard(req: AuthenticatedRequest, res: Response) {
+    const userId = req.user.id;
+    const { id } = req.params;
+    cardControllerLogger.info('Delete card request received', { userId, cardId: id });
+    
     try {
-      const { id } = req.params;
-      const card = await cardService.deleteCard(id, req.user.id);
+      const card = await cardService.deleteCard(id, userId);
 
       if (!card) {
+        cardControllerLogger.warn('Card not found for deletion', { userId, cardId: id });
         return sendResponse(res, null, 'error', 'Card not found', 404);
       }
 
+      cardControllerLogger.info('Card deleted successfully', { userId, cardId: id });
       return sendResponse(res, card, 'success', 'Card deleted successfully');
     } catch (error) {
-      logger.error('Delete card error:', error);
+      cardControllerLogger.error('Failed to delete card', { 
+        userId,
+        cardId: id,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
       return sendResponse(res, null, 'error', error instanceof Error ? error.message : 'Failed to delete card', 500);
     }
   },
 
   async updateCardProgress(req: AuthenticatedRequest, res: Response) {
+    const userId = req.user.id;
+    const { id } = req.params;
+    const { isSuccess } = req.body;
+    cardControllerLogger.info('Update card progress request received', { userId, cardId: id, isSuccess });
+    
     try {
-      const { id } = req.params;
-      const { isSuccess } = req.body;
-
-      const card = await cardService.updateCardProgress(req.user.id, id, isSuccess);
+      const card = await cardService.updateCardProgress(userId, id, isSuccess);
 
       if (!card) {
+        cardControllerLogger.warn('Card not found for progress update', { userId, cardId: id });
         return sendResponse(res, null, 'error', 'Card not found', 404);
       }
 
+      cardControllerLogger.info('Card progress updated successfully', { userId, cardId: id, isSuccess });
       return sendResponse(res, card, 'success', 'Card progress updated successfully');
     } catch (error) {
-      logger.error('Update card progress error:', error);
+      cardControllerLogger.error('Failed to update card progress', { 
+        userId,
+        cardId: id,
+        isSuccess,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
       return sendResponse(res, null, 'error', error instanceof Error ? error.message : 'Failed to update card progress', 500);
     }
   },
 
   async getTodayCards(req: AuthenticatedRequest, res: Response) {
+    const userId = req.user.id;
+    cardControllerLogger.debug('Get today cards request received', { userId });
+    
     try {
-      const result = await cardService.getTodayCards(req.user.id);
+      const result = await cardService.getTodayCards(userId);
+      cardControllerLogger.debug('Today cards retrieved successfully', { userId });
       return sendResponse(res, result, 'success', 'Today cards fetched successfully');
     } catch (error) {
-      logger.error('Get today cards error:', error);
+      cardControllerLogger.error('Failed to get today cards', { 
+        userId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
       return sendResponse(res, null, 'error', error instanceof Error ? error.message : 'Failed to fetch today cards', 500);
     }
   },
 
   async getStats(req: AuthenticatedRequest, res: Response) {
+    const userId = req.user.id;
+    cardControllerLogger.debug('Get card stats request received', { userId });
+    
     try {
-      const result = await cardService.getStats(req.user.id);
+      const result = await cardService.getStats(userId);
+      cardControllerLogger.debug('Card stats retrieved successfully', { userId });
       return sendResponse(res, result || {}, 'success', 'Card stats fetched successfully');
     } catch (error) {
-      logger.error('Get card stats error:', error);
+      cardControllerLogger.error('Failed to get card stats', { 
+        userId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
       return sendResponse(res, null, 'error', error instanceof Error ? error.message : 'Failed to fetch card stats', 500);
     }
   },
 
   async getUpcomingCards(req: AuthenticatedRequest, res: Response) {
+    const userId = req.user.id;
+    const days = req.query.days ? parseInt(req.query.days as string) : 7;
+    const startDays = req.query.startDays ? parseInt(req.query.startDays as string) : -14;
+    cardControllerLogger.debug('Get upcoming cards request received', { userId, days, startDays });
+    
     try {
-      const days = req.query.days ? parseInt(req.query.days as string) : 7;
-      const startDays = req.query.startDays ? parseInt(req.query.startDays as string) : -14;
-      const result = await cardService.getUpcomingCards(req.user.id, days, startDays);
+      const result = await cardService.getUpcomingCards(userId, days, startDays);
+      cardControllerLogger.debug('Upcoming cards retrieved successfully', { userId, days, startDays });
       return sendResponse(res, result || {}, 'success', 'Upcoming cards fetched successfully');
     } catch (error) {
-      logger.error('Get upcoming cards error:', error);
+      cardControllerLogger.error('Failed to get upcoming cards', { 
+        userId,
+        days,
+        startDays,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
       return sendResponse(res, null, 'error', error instanceof Error ? error.message : 'Failed to fetch upcoming cards', 500);
     }
   },
 
   async addToReview(req: AuthenticatedRequest, res: Response) {
+    const userId = req.user.id;
+    const { cardIds } = req.body;
+    cardControllerLogger.info('Add to review request received', { userId, cardCount: cardIds?.length });
+    
     try {
-      const { cardIds } = req.body;
-      
       if (!Array.isArray(cardIds)) {
+        cardControllerLogger.warn('Invalid cardIds format', { userId, cardIds });
         return sendResponse(res, null, 'error', 'cardIds must be an array', 400);
       }
 
-      const result = await cardService.addToReview(req.user.id, cardIds);
+      const result = await cardService.addToReview(userId, cardIds);
+      cardControllerLogger.info('Cards added to review successfully', { userId, cardCount: cardIds.length });
       return sendResponse(res, result, 'success', 'Cards added to review successfully');
     } catch (error) {
-      logger.error('Add to review error:', error);
+      cardControllerLogger.error('Failed to add cards to review', { 
+        userId,
+        cardIds,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
       return sendResponse(res, null, 'error', error instanceof Error ? error.message : 'Failed to add cards to review', 500);
     }
   },
 
   async reviewCard(req: AuthenticatedRequest, res: Response) {
+    const userId = req.user.id;
+    const { cardId, isSuccess } = req.body;
+    cardControllerLogger.info('Review card request received', { userId, cardId, isSuccess });
+    
     try {
-      const { cardId, isSuccess } = req.body;
-      
       if (typeof isSuccess !== 'boolean') {
+        cardControllerLogger.warn('Invalid isSuccess format', { userId, cardId, isSuccess });
         return sendResponse(res, null, 'error', 'isSuccess must be a boolean', 400);
       }
 
-      const card = await cardService.reviewCard(req.user.id, cardId, isSuccess);
+      const card = await cardService.reviewCard(userId, cardId, isSuccess);
       
       if (!card) {
+        cardControllerLogger.warn('Card not found for review', { userId, cardId });
         return sendResponse(res, null, 'error', 'Card not found', 404);
       }
 
+      cardControllerLogger.info('Card reviewed successfully', { userId, cardId, isSuccess });
       return sendResponse(res, card, 'success', 'Card reviewed successfully');
     } catch (error) {
-      logger.error('Review card error:', error);
+      cardControllerLogger.error('Failed to review card', { 
+        userId,
+        cardId,
+        isSuccess,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
       return sendResponse(res, null, 'error', error instanceof Error ? error.message : 'Failed to review card', 500);
     }
   },
 
   async getReviewHistory(req: AuthenticatedRequest, res: Response) {
+    const userId = req.user.id;
+    const { startDate, endDate, days } = req.query;
+    const daysParam = days ? parseInt(days as string) : 30;
+    cardControllerLogger.debug('Get review history request received', { userId, startDate, endDate, days: daysParam });
+    
     try {
-      const { startDate, endDate, days } = req.query;
       const result = await cardService.getReviewHistory(
-        req.user.id,
+        userId,
         startDate as string,
         endDate as string,
-        days ? parseInt(days as string) : 30
+        daysParam
       );
 
+      cardControllerLogger.debug('Review history retrieved successfully', { userId });
       return sendResponse(res, result, 'success', 'Review history fetched successfully');
     } catch (error) {
-      logger.error('Get review history error:', error);
+      cardControllerLogger.error('Failed to get review history', { 
+        userId,
+        startDate,
+        endDate,
+        days: daysParam,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
       return sendResponse(res, null, 'error', error instanceof Error ? error.message : 'Failed to fetch review history', 500);
     }
   },
 
   async importCards(req: Request, res: Response) {
+    const userId = req.user?.id;
+    const wordListId = req.body.wordListId;
+    cardControllerLogger.info('Import cards request received', { 
+      userId, 
+      wordListId,
+      hasFile: !!req.file,
+      fileSize: req.file?.size,
+      mimeType: req.file?.mimetype
+    });
+    
     try {
       if (!req.file) {
+        cardControllerLogger.warn('Import cards request without file', { userId });
         return res.status(400).json({ error: 'No file provided' });
       }
 
-      const userId = req.user?.id;
       if (!userId) {
+        cardControllerLogger.warn('Import cards request without authentication');
         return res.status(401).json({ error: 'Unauthorized' });
       }
 
@@ -213,31 +330,72 @@ export const CardController = {
       if (!req.file.mimetype.includes('spreadsheet') && 
           !req.file.mimetype.includes('excel') && 
           !req.file.mimetype.includes('csv')) {
+        cardControllerLogger.warn('Invalid file type for import', { 
+          userId, 
+          mimeType: req.file.mimetype 
+        });
         return res.status(400).json({ 
           error: 'Invalid file type. Please upload an Excel file (.xlsx, .xls) or CSV file' 
         });
       }
 
-      const wordListId = req.body.wordListId;
       const results = await cardService.importCards(userId, req.file.buffer, wordListId);
       
       if (results.failed > 0) {
+        cardControllerLogger.warn('Import completed with errors', { 
+          userId, 
+          success: results.success, 
+          failed: results.failed,
+          errorCount: results.errors.length
+        });
         return res.status(207).json({
           message: 'Import completed with some errors',
           ...results
         });
       }
 
+      cardControllerLogger.info('Import completed successfully', { 
+        userId, 
+        success: results.success 
+      });
       return res.json({
         message: 'Import completed successfully',
         ...results
       });
     } catch (error) {
-      console.error('Error importing cards:', error);
+      cardControllerLogger.error('Card import failed', { 
+        userId,
+        wordListId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
       return res.status(500).json({ 
         error: 'Failed to import cards',
         details: error instanceof Error ? error.message : 'Unknown error'
       });
+    }
+  },
+
+  async getAvailableCards(req: AuthenticatedRequest, res: Response) {
+    const userId = req.user.id;
+    const wordListId = req.query.wordListId as string;
+    cardControllerLogger.debug('Get available cards request received', { userId, wordListId });
+    
+    try {
+      if (!wordListId) {
+        cardControllerLogger.warn('wordListId parameter missing', { userId });
+        return sendResponse(res, null, 'error', 'wordListId parameter is required', 400);
+      }
+
+      const cards = await cardService.getAvailableCards(userId, wordListId);
+      cardControllerLogger.debug('Available cards retrieved successfully', { userId, wordListId, count: cards.length });
+      return sendResponse(res, cards, 'success', 'Available cards retrieved successfully');
+    } catch (error) {
+      cardControllerLogger.error('Failed to get available cards', { 
+        userId,
+        wordListId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      return sendResponse(res, null, 'error', error instanceof Error ? error.message : 'Failed to get available cards', 500);
     }
   },
 }; 

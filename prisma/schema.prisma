@@ -61,6 +61,7 @@ model User {
   longestStreak Int         @default(0)
   streakUpdatedAt DateTime  @default(now())
   reviewSessions ReviewSession[]
+  settings      UserSettings?
 }
 
 model ReviewSchedule {
@@ -196,4 +197,16 @@ model ReviewSession {
   mode         String   // 'flashcard' or 'multiple-choice'
   cards        Json     // Store card IDs or details for the session
   user         User     @relation(fields: [userId], references: [id])
+}
+
+model UserSettings {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emailNotifications Boolean  @default(true)
+  reviewReminders    Boolean  @default(true)
+  publicProfile      Boolean  @default(false)
+  shareStatistics    Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 }

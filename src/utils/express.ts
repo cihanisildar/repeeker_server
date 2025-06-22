@@ -11,4 +11,17 @@ export const withAuth = (
       next(error);
     }
   };
+};
+
+// General async handler for non-authenticated routes
+export const asyncHandler = (
+  handler: (req: Request, res: Response) => Promise<any>
+) => {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      await handler(req, res);
+    } catch (error) {
+      next(error);
+    }
+  };
 }; 

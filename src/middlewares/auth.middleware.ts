@@ -21,7 +21,6 @@ export const authMiddleware = async (
       return res.status(401).json({ message: 'No token provided' });
     }
 
-    // Verify token with NextAuth secret
     const decoded = jwt.verify(token, process.env.NEXTAUTH_SECRET as string) as {
       id: string;
       email: string;
@@ -29,11 +28,9 @@ export const authMiddleware = async (
       picture?: string;
     };
 
-    // Sync the user with our database
     try {
       const dbUser = await authService.syncNextAuthUser(decoded);
       
-      // Use the database user ID instead of NextAuth ID
       req.user = {
         id: dbUser.id,
         email: dbUser.email || '',
@@ -45,7 +42,6 @@ export const authMiddleware = async (
       return res.status(500).json({ message: 'Failed to sync user' });
     }
     
-    // Ensure req.user is set
     if (!req.user) {
       logger.error('req.user is not set after authentication');
       return res.status(500).json({ message: 'Authentication failed' });

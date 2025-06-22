@@ -15,6 +15,12 @@ declare global {
         mimetype: string;
         size: number;
       };
+      rateLimit?: {
+        limit: number;
+        current: number;
+        remaining: number;
+        resetTime: number;
+      };
     }
   }
 }

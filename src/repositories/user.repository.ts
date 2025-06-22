@@ -1,16 +1,37 @@
 import prisma from '../lib/prisma';
 import { User } from '@prisma/client';
-import { logger } from '../utils/logger';
+import { createModuleLogger } from '../utils/logger';
+
+const userRepositoryLogger = createModuleLogger('UserRepository');
 
 export const userRepository = {
   async findByEmail(email: string): Promise<User | null> {
-    return prisma.user.findUnique({
-      where: { email },
-    });
+    userRepositoryLogger.debug('Finding user by email', { email });
+    
+    try {
+      const user = await prisma.user.findUnique({
+        where: { email },
+      });
+      
+      userRepositoryLogger.debug('User email lookup result', { 
+        email, 
+        found: !!user,
+        userId: user?.id 
+      });
+      
+      return user;
+    } catch (error) {
+      userRepositoryLogger.error('Failed to find user by email', { 
+        email,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      throw error;
+    }
   },
 
   async findByEmailOrGoogleId(email: string, googleId: string): Promise<User | null> {
-    logger.debug('UserRepository.findByEmailOrGoogleId called with:', { email, googleId });
+    userRepositoryLogger.debug('Finding user by email or Google ID', { email, googleId });
+    
     try {
       const user = await prisma.user.findFirst({
         where: {
@@ -34,10 +55,21 @@ export const userRepository = {
           streakUpdatedAt: true
         },
       });
-      logger.debug('UserRepository.findByEmailOrGoogleId result:', user ? `User found: ${user.email}` : 'User not found');
+      
+      userRepositoryLogger.debug('Email/Google ID lookup result', { 
+        email, 
+        googleId,
+        found: !!user,
+        userId: user?.id 
+      });
+      
       return user;
     } catch (error) {
-      logger.error('Error in UserRepository.findByEmailOrGoogleId:', error);
+      userRepositoryLogger.error('Failed to find user by email or Google ID', { 
+        email,
+        googleId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
       throw error;
     }
   },
@@ -48,21 +80,39 @@ export const userRepository = {
     password: string;
     googleId?: string;
   }): Promise<User> {
-    logger.debug('Creating user with data:', { email: data.email, name: data.name, googleId: data.googleId });
+    userRepositoryLogger.debug('Creating user', { 
+      email: data.email, 
+      name: data.name, 
+      googleId: data.googleId,
+      hasPassword: !!data.password
+    });
+    
     try {
       const user = await prisma.user.create({
         data,
       });
-      logger.debug('Successfully created user with ID:', user.id);
+      
+      userRepositoryLogger.info('Successfully created user', { 
+        userId: user.id,
+        email: user.email,
+        name: user.name
+      });
+      
       return user;
     } catch (error) {
-      logger.error('Error creating user:', error);
+      userRepositoryLogger.error('Failed to create user', { 
+        email: data.email,
+        name: data.name,
+        googleId: data.googleId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
       throw error;
     }
   },
 
   async findById(id: string): Promise<User | null> {
-    logger.debug('UserRepository.findById called with ID:', id);
+    userRepositoryLogger.debug('Finding user by ID', { userId: id });
+    
     try {
       const user = await prisma.user.findUnique({
         where: { id },
@@ -81,16 +131,26 @@ export const userRepository = {
           streakUpdatedAt: true
         },
       });
-      logger.debug('UserRepository.findById result:', user ? `User found: ${user.email}` : 'User not found');
+      
+      userRepositoryLogger.debug('User ID lookup result', { 
+        userId: id,
+        found: !!user,
+        email: user?.email 
+      });
+      
       return user;
     } catch (error) {
-      logger.error('Error in UserRepository.findById:', error);
+      userRepositoryLogger.error('Failed to find user by ID', { 
+        userId: id,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
       throw error;
     }
   },
 
   async findByIdOrGoogleId(id: string): Promise<User | null> {
-    logger.debug('UserRepository.findByIdOrGoogleId called with ID:', id);
+    userRepositoryLogger.debug('Finding user by ID or Google ID', { id });
+    
     try {
       // First try to find by DB ID
       let user = await prisma.user.findUnique({
@@ -113,7 +173,7 @@ export const userRepository = {
 
       // If not found by DB ID, try by Google ID
       if (!user) {
-        logger.debug('User not found by DB ID, trying Google ID');
+        userRepositoryLogger.debug('User not found by DB ID, trying Google ID', { id });
         user = await prisma.user.findUnique({
           where: { googleId: id },
           select: {
@@ -133,24 +193,74 @@ export const userRepository = {
         });
       }
 
-      logger.debug('UserRepository.findByIdOrGoogleId result:', user ? `User found: ${user.email}` : 'User not found');
+      userRepositoryLogger.debug('ID/Google ID lookup result', { 
+        searchId: id,
+        found: !!user,
+        userId: user?.id,
+        email: user?.email,
+        foundBy: user ? (user.id === id ? 'DB_ID' : 'GOOGLE_ID') : 'NOT_FOUND'
+      });
+      
       return user;
     } catch (error) {
-      logger.error('Error in UserRepository.findByIdOrGoogleId:', error);
+      userRepositoryLogger.error('Failed to find user by ID or Google ID', { 
+        id,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
       throw error;
     }
   },
 
   async update(id: string, data: Partial<User>): Promise<User> {
-    return prisma.user.update({
-      where: { id },
-      data,
+    userRepositoryLogger.debug('Updating user', { 
+      userId: id,
+      fields: Object.keys(data),
+      hasPassword: !!data.password
     });
+    
+    try {
+      const user = await prisma.user.update({
+        where: { id },
+        data,
+      });
+      
+      userRepositoryLogger.info('Successfully updated user', { 
+        userId: id,
+        email: user.email,
+        updatedFields: Object.keys(data)
+      });
+      
+      return user;
+    } catch (error) {
+      userRepositoryLogger.error('Failed to update user', { 
+        userId: id,
+        fields: Object.keys(data),
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      throw error;
+    }
   },
 
   async delete(id: string): Promise<User> {
-    return prisma.user.delete({
-      where: { id },
-    });
+    userRepositoryLogger.debug('Deleting user', { userId: id });
+    
+    try {
+      const user = await prisma.user.delete({
+        where: { id },
+      });
+      
+      userRepositoryLogger.warn('Successfully deleted user', { 
+        userId: id,
+        email: user.email
+      });
+      
+      return user;
+    } catch (error) {
+      userRepositoryLogger.error('Failed to delete user', { 
+        userId: id,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      throw error;
+    }
   },
 }; 

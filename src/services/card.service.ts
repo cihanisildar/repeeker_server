@@ -1,7 +1,11 @@
 import { cardRepository } from '../repositories/card.repository';
 import * as XLSX from 'xlsx';
 import OpenAI from 'openai';
-import { logger } from '../utils/logger';
+import { logger, createModuleLogger } from '../utils/logger';
+import { validateData, validateId, validateIdArray, safeValidateData } from '../utils/validation';
+import { CardCreateSchema, CardUpdateSchema, WordDetailsCreateSchema } from '../schemas';
+
+const cardLogger = createModuleLogger('CARD');
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -30,12 +34,11 @@ async function analyzeColumns(headers: string[], sampleData: any[]): Promise<{
   try {
     // Check if OpenAI API key is set
     if (!process.env.OPENAI_API_KEY) {
-      console.error('OpenAI API key is not set');
+      cardLogger.error('OpenAI API key is not set');
       throw new Error('OpenAI API key is not configured');
     }
 
-    console.log('Starting column analysis with headers:', headers);
-    console.log('Sample data length:', sampleData.length);
+    cardLogger.debug('Starting column analysis', { headers, sampleDataLength: sampleData.length });
 
     // Create a sample of the data for analysis
     const sample = sampleData.slice(0, 3).map(row => {
@@ -46,7 +49,7 @@ async function analyzeColumns(headers: string[], sampleData: any[]): Promise<{
       return sampleRow;
     });
 
-    console.log('Prepared sample data:', JSON.stringify(sample, null, 2));
+    cardLogger.debug('Prepared sample data for AI analysis', { sample });
 
     const prompt = `Given these Excel columns and sample data, identify which columns contain:
 1. Vocabulary words
@@ -73,7 +76,7 @@ Return a JSON object with the column mappings:
 
 Only include columns that you are confident about. If you're not sure about a column's purpose, omit it from the response.`;
 
-    console.log('Sending request to OpenAI API...');
+    cardLogger.debug('Sending request to OpenAI API');
     const model = process.env.OPENAI_MODEL || "gpt-4-turbo-preview";
     const maxTokens = 1000;
 
@@ -84,14 +87,14 @@ Only include columns that you are confident about. If you're not sure about a co
       max_tokens: maxTokens,
     });
 
-    console.log('Received response from OpenAI API');
+    cardLogger.debug('Received response from OpenAI API');
     const response = completion.choices[0].message.content;
     if (!response) {
-      console.error('Empty response received from OpenAI API');
+      cardLogger.error('Empty response received from OpenAI API');
       throw new Error('Empty response from OpenAI API');
     }
 
-    console.log('Parsing API response:', response);
+    cardLogger.debug('Parsing API response', { response });
     const columnMap = JSON.parse(response);
 
     // Validate the response structure
@@ -99,20 +102,20 @@ Only include columns that you are confident about. If you're not sure about a co
     const invalidKeys = Object.keys(columnMap).filter(key => !validKeys.includes(key));
     
     if (invalidKeys.length > 0) {
-      console.error('Invalid keys in API response:', invalidKeys);
+      cardLogger.error('Invalid keys in API response', { invalidKeys });
       throw new Error(`Invalid keys in API response: ${invalidKeys.join(', ')}`);
     }
 
     // Validate that required columns are present
     if (!columnMap.wordColumn || !columnMap.definitionColumn) {
-      console.error('Missing required columns in API response:', columnMap);
+      cardLogger.error('Missing required columns in API response', { columnMap });
       throw new Error('API response missing required column mappings (wordColumn or definitionColumn)');
     }
 
-    console.log('Successfully analyzed columns:', columnMap);
+    cardLogger.info('Successfully analyzed columns', { columnMap });
     return columnMap;
   } catch (error) {
-    console.error('Detailed error in analyzeColumns:', {
+    cardLogger.error('Error in analyzeColumns', {
       error: error instanceof Error ? error.message : 'Unknown error',
       stack: error instanceof Error ? error.stack : undefined,
       headers,
@@ -143,16 +146,82 @@ export const cardService = {
       notes?: string;
     };
   }) {
-    return cardRepository.create(data);
+    cardLogger.info('Creating new card', { userId: data.userId, word: data.word, wordListId: data.wordListId });
+    
+    try {
+      // Validate userId
+      validateId(data.userId, 'userId');
+      
+      // Validate wordListId if provided
+      if (data.wordListId) {
+        validateId(data.wordListId, 'wordListId');
+      }
+      
+      // Validate card data
+      const validatedCardData = validateData(CardCreateSchema, {
+        word: data.word,
+        definition: data.definition,
+        wordListId: data.wordListId
+      }, 'card creation');
+      
+      // Validate word details if provided
+      let validatedWordDetails: typeof data.wordDetails;
+      if (data.wordDetails) {
+        validatedWordDetails = validateData(WordDetailsCreateSchema, data.wordDetails, 'word details') as typeof data.wordDetails;
+      }
+      
+      const result = await cardRepository.create({
+        ...validatedCardData,
+        userId: data.userId,
+        wordDetails: validatedWordDetails
+      });
+      
+      cardLogger.info('Card created successfully', { cardId: result.id, userId: data.userId });
+      return result;
+    } catch (error) {
+      cardLogger.error('Failed to create card', { 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId: data.userId,
+        word: data.word
+      });
+      throw error;
+    }
   },
 
   async getCards(userId: string, wordListId?: string) {
-    return cardRepository.findMany(userId, wordListId);
+    cardLogger.debug('Fetching cards', { userId, wordListId });
+    try {
+      const cards = await cardRepository.findMany(userId, wordListId);
+      cardLogger.debug('Cards fetched successfully', { userId, count: Array.isArray(cards) ? cards.length : 'N/A' });
+      return cards;
+    } catch (error) {
+      cardLogger.error('Failed to fetch cards', { 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId,
+        wordListId
+      });
+      throw error;
+    }
   },
 
   async getCard(id: string, userId: string) {
-    const card = await cardRepository.findById(id, userId);
-    return card || null;
+    cardLogger.debug('Fetching card by ID', { cardId: id, userId });
+    try {
+      const card = await cardRepository.findById(id, userId);
+      if (card) {
+        cardLogger.debug('Card found', { cardId: id, userId });
+      } else {
+        cardLogger.warn('Card not found', { cardId: id, userId });
+      }
+      return card || null;
+    } catch (error) {
+      cardLogger.error('Failed to fetch card', { 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        cardId: id,
+        userId
+      });
+      throw error;
+    }
   },
 
   async updateCard(id: string, userId: string, data: {
@@ -165,76 +234,192 @@ export const cardService = {
       notes?: string;
     };
   }) {
-    const updatedCard = await cardRepository.update(id, userId, data);
-    return updatedCard || null;
+    cardLogger.info('Updating card', { cardId: id, userId, updateFields: Object.keys(data) });
+    try {
+      const updatedCard = await cardRepository.update(id, userId, data);
+      if (updatedCard) {
+        cardLogger.info('Card updated successfully', { cardId: id, userId });
+      } else {
+        cardLogger.warn('Card not found for update', { cardId: id, userId });
+      }
+      return updatedCard || null;
+    } catch (error) {
+      cardLogger.error('Failed to update card', { 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        cardId: id,
+        userId
+      });
+      throw error;
+    }
   },
 
   async deleteCard(id: string, userId: string) {
-    const success = await cardRepository.delete(id, userId);
-    return success || null;
+    cardLogger.info('Deleting card', { cardId: id, userId });
+    try {
+      const success = await cardRepository.delete(id, userId);
+      if (success) {
+        cardLogger.info('Card deleted successfully', { cardId: id, userId });
+      } else {
+        cardLogger.warn('Card not found for deletion', { cardId: id, userId });
+      }
+      return success || null;
+    } catch (error) {
+      cardLogger.error('Failed to delete card', { 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        cardId: id,
+        userId
+      });
+      throw error;
+    }
   },
 
   async updateCardProgress(userId: string, cardId: string, isSuccess: boolean) {
-    logger.info('Updating card progress:', { userId, cardId, isSuccess });
-    return cardRepository.updateProgress(userId, cardId, isSuccess);
+    cardLogger.info('Updating card progress', { userId, cardId, isSuccess });
+    try {
+      const result = await cardRepository.updateProgress(userId, cardId, isSuccess);
+      cardLogger.info('Card progress updated successfully', { userId, cardId, isSuccess });
+      return result;
+    } catch (error) {
+      cardLogger.error('Failed to update card progress', { 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId,
+        cardId,
+        isSuccess
+      });
+      throw error;
+    }
   },
 
   async getTodayCards(userId: string) {
-    return cardRepository.findTodayCards(userId);
+    cardLogger.debug('Fetching today\'s cards', { userId });
+    try {
+      const cards = await cardRepository.findTodayCards(userId);
+      cardLogger.debug('Today\'s cards fetched successfully', { userId, count: cards?.cards?.length || 'N/A' });
+      return cards;
+    } catch (error) {
+      cardLogger.error('Failed to fetch today\'s cards', { 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId
+      });
+      throw error;
+    }
   },
 
   async getStats(userId: string) {
-    return cardRepository.getStats(userId);
+    cardLogger.debug('Fetching card stats', { userId });
+    try {
+      const stats = await cardRepository.getStats(userId);
+      cardLogger.debug('Card stats fetched successfully', { userId, stats });
+      return stats;
+    } catch (error) {
+      cardLogger.error('Failed to fetch card stats', { 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId
+      });
+      throw error;
+    }
   },
 
   async getUpcomingCards(userId: string, days: number = 7, startDays: number = -14) {
-    return cardRepository.getUpcomingCards(userId, days, startDays);
+    cardLogger.debug('Fetching upcoming cards', { userId, days, startDays });
+    try {
+      const cards = await cardRepository.getUpcomingCards(userId, days, startDays);
+      cardLogger.debug('Upcoming cards fetched successfully', { userId, count: cards && typeof cards === 'object' ? 'fetched' : 'N/A' });
+      return cards;
+    } catch (error) {
+      cardLogger.error('Failed to fetch upcoming cards', { 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId,
+        days,
+        startDays
+      });
+      throw error;
+    }
   },
 
   async addToReview(userId: string, cardIds: string[]) {
-    return cardRepository.addToReview(userId, cardIds);
+    cardLogger.info('Adding cards to review', { userId, cardCount: cardIds.length });
+    try {
+      const result = await cardRepository.addToReview(userId, cardIds);
+      cardLogger.info('Cards added to review successfully', { userId, cardCount: cardIds.length });
+      return result;
+    } catch (error) {
+      cardLogger.error('Failed to add cards to review', { 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId,
+        cardIds
+      });
+      throw error;
+    }
   },
 
   async reviewCard(userId: string, cardId: string, isSuccess: boolean) {
-    return cardRepository.reviewCard(userId, cardId, isSuccess);
+    cardLogger.info('Reviewing card', { userId, cardId, isSuccess });
+    try {
+      const result = await cardRepository.reviewCard(userId, cardId, isSuccess);
+      cardLogger.info('Card reviewed successfully', { userId, cardId, isSuccess });
+      return result;
+    } catch (error) {
+      cardLogger.error('Failed to review card', { 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId,
+        cardId,
+        isSuccess
+      });
+      throw error;
+    }
   },
 
   async getReviewHistory(userId: string, startDate?: string, endDate?: string, days: number = 30) {
-    return cardRepository.getReviewHistory(userId, startDate, endDate, days);
+    cardLogger.debug('Fetching review history', { userId, startDate, endDate, days });
+    try {
+      const history = await cardRepository.getReviewHistory(userId, startDate, endDate, days);
+      cardLogger.debug('Review history fetched successfully', { userId, historyCount: history?.cards?.length || 'N/A' });
+      return history;
+    } catch (error) {
+      cardLogger.error('Failed to fetch review history', { 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId,
+        startDate,
+        endDate,
+        days
+      });
+      throw error;
+    }
   },
 
   async importCards(userId: string, fileBuffer: Buffer, wordListId?: string) {
+    cardLogger.info('Starting card import process', { userId, bufferSize: fileBuffer.length, wordListId });
+    
     try {
-      console.log('Starting card import process...');
-      
       // Read the Excel file
       const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
       
       if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
-        console.error('No sheets found in Excel file');
+        cardLogger.error('No sheets found in Excel file', { userId });
         throw new Error('No sheets found in the Excel file');
       }
 
-      console.log('Found sheets:', workbook.SheetNames);
+      cardLogger.debug('Excel file parsed successfully', { userId, sheets: workbook.SheetNames });
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];
       if (!worksheet) {
-        console.error('First sheet is empty or invalid');
+        cardLogger.error('First sheet is empty or invalid', { userId });
         throw new Error('First sheet is empty or invalid');
       }
 
       const data = XLSX.utils.sheet_to_json(worksheet);
       if (!data || data.length === 0) {
-        console.error('No data found in Excel file');
+        cardLogger.error('No data found in Excel file', { userId });
         throw new Error('No data found in the Excel file');
       }
 
-      console.log('Successfully parsed Excel data, rows:', data.length);
+      cardLogger.info('Excel data parsed successfully', { userId, rowCount: data.length });
       const headers = Object.keys(data[0] as object);
-      console.log('Excel headers:', headers);
+      cardLogger.debug('Excel headers identified', { userId, headers });
 
       // Use AI to analyze and map columns
       const columnMap = await analyzeColumns(headers, data);
-      console.log('AI column mapping:', columnMap);
+      cardLogger.info('AI column mapping completed', { userId, columnMap });
 
       // Validate required columns
       if (!columnMap.wordColumn || !columnMap.definitionColumn) {
@@ -255,6 +440,7 @@ export const cardService = {
           'You can also try renaming your columns to be more descriptive.'
         ].filter(Boolean).join('\n');
 
+        cardLogger.error('Required columns not identified', { userId, headers, columnMap });
         throw new Error(errorMessage);
       }
 
@@ -264,10 +450,14 @@ export const cardService = {
         errors: [] as string[]
       };
 
+      cardLogger.info('Starting batch processing of cards', { userId, totalRows: data.length });
+
       // Process each row
       const batchSize = 10;
       for (let i = 0; i < data.length; i += batchSize) {
         const batch = data.slice(i, i + batchSize);
+        cardLogger.debug('Processing batch', { userId, batchStart: i, batchSize: batch.length });
+        
         const batchPromises = batch.map(async (row, index) => {
           try {
             const r = row as any;
@@ -276,7 +466,7 @@ export const cardService = {
             
             if (!word || !definition) {
               const error = `Row ${i + index + 1} missing required fields: ${JSON.stringify(row)}`;
-              console.error(error);
+              cardLogger.warn('Skipping row with missing data', { userId, rowIndex: i + index + 1, row });
               results.failed++;
               results.errors.push(error);
               return;
@@ -298,7 +488,11 @@ export const cardService = {
             results.success++;
           } catch (error) {
             const errorMessage = `Error processing row ${i + index + 1}: ${error instanceof Error ? error.message : 'Unknown error'}`;
-            console.error(errorMessage);
+            cardLogger.error('Error processing row', { 
+              userId, 
+              rowIndex: i + index + 1, 
+              error: error instanceof Error ? error.message : 'Unknown error' 
+            });
             results.failed++;
             results.errors.push(errorMessage);
           }
@@ -306,9 +500,37 @@ export const cardService = {
         await Promise.all(batchPromises);
       }
 
+      cardLogger.info('Card import completed', { 
+        userId, 
+        totalRows: data.length,
+        successCount: results.success,
+        failedCount: results.failed,
+        errorCount: results.errors.length
+      });
+
       return results;
     } catch (error) {
-      console.error('Error in importCards:', error);
+      cardLogger.error('Card import failed', { 
+        userId, 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      throw error;
+    }
+  },
+
+  async getAvailableCards(userId: string, wordListId: string) {
+    cardLogger.debug('Fetching available cards for word list', { userId, wordListId });
+    try {
+      const cards = await cardRepository.findAvailableCards(userId, wordListId);
+      cardLogger.debug('Available cards fetched successfully', { userId, wordListId, count: cards.length });
+      return cards;
+    } catch (error) {
+      cardLogger.error('Failed to fetch available cards', { 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId,
+        wordListId
+      });
       throw error;
     }
   },

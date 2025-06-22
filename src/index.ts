@@ -4,25 +4,42 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
+import swaggerUi from "swagger-ui-express";
+import { swaggerSpec } from "./config/swagger";
 import { errorMiddleware } from "./middlewares/error.middleware";
+import { generalRateLimit } from "./middlewares/rate-limit.middleware";
 import { logger } from "./utils/logger";
 import routes from "./routes";
 
 const app = express();
-// Railway assigns the port dynamically - MUST use this
-const port = parseInt(process.env.PORT || "8080", 10);
+const port = parseInt(process.env.PORT || '3000', 10);
 
 // Middlewares
 app.use(helmet());
+app.use(generalRateLimit);
 app.use(
   cors({
-    origin: [
-      "https://www.repeeker.com",
-      "repeekerserver-production.up.railway.app", 
-      "https://www.repeeker.com/", // Add your specific Vercel deployment URL
-      "http://localhost:3000", // For local development
-      "http://localhost:3001", // Backup local port
-    ],
+    origin: (() => {
+      const defaultOrigins = [
+        "https://www.repeeker.com",
+        "repeekerserver-production.up.railway.app", 
+        "https://www.repeeker.com/", 
+        "http://localhost:3000", 
+        "http://localhost:3001", 
+      ];
+      
+      if (process.env.CORS_ORIGIN) {
+        const envOrigins = process.env.CORS_ORIGIN.split(',');
+        // In development, always include localhost origins
+        if (process.env.NODE_ENV === 'development') {
+          const devOrigins = ["http://localhost:3000", "http://localhost:3001"];
+          return [...new Set([...envOrigins, ...devOrigins])];
+        }
+        return envOrigins;
+      }
+      
+      return defaultOrigins;
+    })(),
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: [
@@ -42,13 +59,27 @@ app.use(
 app.use(express.json());
 app.use(morgan("dev"));
 
-// CRITICAL: Add health check endpoint that Railway expects
+// Swagger Documentation
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  explorer: true,
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: "Repeeker API Documentation",
+}));
+
+// Swagger JSON endpoint
+app.get('/api-docs.json', (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpec);
+});
+
 app.get("/", (req, res) => {
   res.status(200).json({
     status: "OK",
     message: "Repeeker Server is running",
     timestamp: new Date().toISOString(),
     port: port,
+    documentation: "/api-docs",
+    apiEndpoint: "/api",
   });
 });
 
@@ -75,12 +106,17 @@ app.use("/api", routes);
 // Error handling
 app.use(errorMiddleware);
 
-// CRITICAL: Must bind to 0.0.0.0 for Railway, not localhost
 app.listen(port, "0.0.0.0", () => {
   console.log(`=== SERVER STARTED ===`);
   console.log(`Port: ${port}`);
-  console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
-  console.log(`CORS Origin: ${process.env.CORS_ORIGIN}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`CORS Origin: ${process.env.CORS_ORIGIN || 'default origins'}`);
+  console.log(`Features: OpenAI=${!!process.env.OPENAI_API_KEY}, Redis=${!!process.env.REDIS_URL}`);
   console.log(`Listening on 0.0.0.0:${port}`);
+  console.log(`=== API DOCUMENTATION ===`);
+  console.log(`Swagger UI: http://localhost:${port}/api-docs`);
+  console.log(`========================`);
   logger.info(`Server is running on port ${port}`);
+  logger.info(`API Documentation available at http://localhost:${port}/api-docs`);
+  logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
 });
