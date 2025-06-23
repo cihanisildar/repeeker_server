@@ -10,6 +10,7 @@ import streakRoutes from './streak.routes';
 import reviewSessionRoutes from './review-session.routes';
 import reviewScheduleRoutes from './review-schedule.routes';
 import userSettingsRoutes from './user-settings.routes';
+import analyticsRoutes from './analytics.routes';
 
 const router = Router();
 
@@ -176,7 +177,8 @@ router.use('/cards', cardRoutes);
 router.use('/test-sessions', testSessionRoutes);
 router.use('/test-history', testHistoryRoutes);
 router.use('/streak', streakRoutes);
-router.use('/review-session', reviewSessionRoutes);
+router.use('/review-sessions', reviewSessionRoutes);
 router.use('/review-schedule', reviewScheduleRoutes);
+router.use('/analytics', analyticsRoutes);
 
 export default router; 

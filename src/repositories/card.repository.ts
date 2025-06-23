@@ -2,6 +2,7 @@ import prisma from '../lib/prisma';
 import { Card, CardProgress } from '@prisma/client';
 import { addDays } from 'date-fns';
 import { createModuleLogger } from '../utils/logger';
+import { calculateSM2, convertToSM2Quality } from '../utils/sm2-algorithm';
 
 const cardRepositoryLogger = createModuleLogger('CardRepository');
 
@@ -320,47 +321,88 @@ export const cardRepository = {
     }
   },
 
-  async findTodayCards(userId: string) {
-    cardRepositoryLogger.debug('Finding today\'s cards for review', { userId });
+  async findTodayCards(userId: string, limit?: number) {
+    cardRepositoryLogger.debug('Finding today\'s cards for review', { userId, limit });
     
     try {
       const now = new Date();
       const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
 
-      // Fetch all active cards due up to today (including overdue)
+      // Use database-level filtering for better performance
       const cards = await prisma.card.findMany({
         where: {
           userId,
           reviewStatus: 'ACTIVE',
-          nextReview: { lte: endOfDay }
+          nextReview: { lte: endOfDay },
+          // Exclude cards already reviewed today using NOT EXISTS pattern
+          NOT: {
+            reviews: {
+              some: {
+                createdAt: {
+                  gte: startOfDay,
+                  lt: endOfDay
+                }
+              }
+            }
+          }
         },
         include: {
           wordDetails: true,
-          wordList: true,
-          reviews: true,
-          user: true
-        }
+          wordList: {
+            select: { id: true, name: true }
+          },
+          user: {
+            select: {
+              reviewSchedule: {
+                select: { intervals: true }
+              }
+            }
+          }
+        },
+        orderBy: [
+          // Prioritize overdue cards
+          { nextReview: 'asc' },
+          // Then by failure rate (most difficult first)
+          { failureCount: 'desc' },
+          // Finally by oldest cards
+          { createdAt: 'asc' }
+        ],
+        ...(limit ? { take: limit } : {})
       });
 
-      // Filter out cards already reviewed today
-      const pendingCards = cards.filter(card =>
-        !card.reviews.some(review => {
-          const created = new Date(review.createdAt);
-          return created >= startOfDay && created < endOfDay;
-        })
-      );
+      // Add priority scoring for better client-side sorting if needed
+      const cardsWithPriority = cards.map(card => {
+        const isOverdue = card.nextReview < now;
+        const failureRate = card.failureCount / Math.max(1, card.successCount + card.failureCount);
+        const daysSinceCreated = Math.floor((now.getTime() - card.createdAt.getTime()) / (1000 * 60 * 60 * 24));
+        
+        return {
+          ...card,
+          priority: {
+            isOverdue,
+            failureRate,
+            daysSinceCreated
+          }
+        };
+      });
 
       cardRepositoryLogger.debug('Successfully found today\'s cards', { 
         userId, 
         totalCards: cards.length,
-        pendingCards: pendingCards.length 
+        overdueCards: cardsWithPriority.filter(c => c.priority.isOverdue).length,
+        limit
       });
 
-      return { cards: pendingCards, total: pendingCards.length };
+      return { 
+        cards: cardsWithPriority, 
+        total: cardsWithPriority.length,
+        hasMore: limit ? cards.length === limit : false
+      };
     } catch (error) {
       cardRepositoryLogger.error('Failed to find today\'s cards', { 
         userId,
+        limit,
         error: error instanceof Error ? error.message : 'Unknown error'
       });
       throw error;
@@ -444,7 +486,7 @@ export const cardRepository = {
     const startDate = new Date(startOfToday);
     startDate.setDate(startDate.getDate() + startDays);
     const endDate = new Date(startOfToday);
-    endDate.setDate(endDate.getDate() + days);
+    endDate.setDate(startDate.getDate() + days);
 
     const cards = await prisma.card.findMany({
       where: {
@@ -635,11 +677,12 @@ export const cardRepository = {
     }
   },
 
-  async reviewCard(userId: string, cardId: string, isSuccess: boolean) {
+    async reviewCard(userId: string, cardId: string, isSuccess: boolean, responseQuality?: number) {
     cardRepositoryLogger.debug('Reviewing card', { 
       userId, 
       cardId, 
-      isSuccess 
+      isSuccess,
+      responseQuality
     });
     
     try {
@@ -671,49 +714,68 @@ export const cardRepository = {
         return null;
       }
 
-    const intervals = card.user.reviewSchedule?.intervals || [1, 7, 30, 365];
-    let newReviewStep = Math.max(0, card.reviewStep);
-    let nextInterval = intervals[newReviewStep] || intervals[0] || 1;
-    if (isSuccess && newReviewStep < intervals.length - 1) {
-      newReviewStep++;
-      nextInterval = intervals[newReviewStep] || intervals[intervals.length - 1] || 1;
-    }
-    const now = new Date();
-    const nextReview = new Date(now);
-    nextReview.setDate(nextReview.getDate() + nextInterval);
-    const updatedCard = await prisma.card.update({
-      where: { id: cardId },
-      data: {
-        lastReviewed: now,
-        nextReview,
-        reviewStep: newReviewStep,
-        viewCount: { increment: 1 },
-        successCount: isSuccess ? { increment: 1 } : undefined,
-        failureCount: !isSuccess ? { increment: 1 } : undefined,
-        reviewStatus: isSuccess && newReviewStep === intervals.length - 1 ? 'COMPLETED' : undefined,
-        reviews: {
-          create: {
-            isSuccess
-          }
-        }
-      },
-      include: {
-        wordDetails: true,
-        wordList: {
-          select: {
-            name: true,
-            id: true
+      // Use SM-2 algorithm for intelligent interval calculation
+      const sm2Quality = convertToSM2Quality(isSuccess, responseQuality);
+      const sm2Result = calculateSM2({
+        interval: card.interval,
+        easeFactor: card.easeFactor,
+        consecutiveCorrect: card.consecutiveCorrect
+      }, sm2Quality);
+
+      const now = new Date();
+      const nextReview = new Date(now);
+      nextReview.setDate(nextReview.getDate() + sm2Result.interval);
+      
+      // Determine review status based on performance
+      const newReviewStatus = sm2Result.consecutiveCorrect >= 5 && sm2Result.interval >= 90 
+        ? 'COMPLETED' 
+        : 'ACTIVE';
+      
+      const updatedCard = await prisma.card.update({
+        where: { id: cardId },
+        data: {
+          lastReviewed: now,
+          nextReview,
+          // Update SM-2 fields
+          interval: sm2Result.interval,
+          easeFactor: sm2Result.easeFactor,
+          consecutiveCorrect: sm2Result.consecutiveCorrect,
+          // Update counters
+          viewCount: { increment: 1 },
+          successCount: isSuccess ? { increment: 1 } : undefined,
+          failureCount: !isSuccess ? { increment: 1 } : undefined,
+          reviewStatus: newReviewStatus,
+          reviews: {
+            create: {
+              isSuccess,
+              quality: responseQuality || (isSuccess ? 3 : 0)
+            }
           }
         },
-        user: true
-      }
-    });
-      cardRepositoryLogger.info('Successfully reviewed card', { 
+        include: {
+          wordDetails: true,
+          wordList: {
+            select: {
+              name: true,
+              id: true
+            }
+          },
+          user: true
+        }
+      });
+
+      cardRepositoryLogger.info('Successfully reviewed card with SM-2', { 
         userId,
         cardId,
         word: updatedCard.word,
         isSuccess,
-        newReviewStep,
+        responseQuality,
+        sm2Quality,
+        oldInterval: card.interval,
+        newInterval: sm2Result.interval,
+        oldEaseFactor: card.easeFactor,
+        newEaseFactor: sm2Result.easeFactor,
+        consecutiveCorrect: sm2Result.consecutiveCorrect,
         nextReview: updatedCard.nextReview,
         reviewStatus: updatedCard.reviewStatus
       });
@@ -724,6 +786,7 @@ export const cardRepository = {
         userId,
         cardId,
         isSuccess,
+        responseQuality,
         error: error instanceof Error ? error.message : 'Unknown error'
       });
       throw error;

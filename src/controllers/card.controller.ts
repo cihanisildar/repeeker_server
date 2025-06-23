@@ -168,15 +168,17 @@ export const CardController = {
 
   async getTodayCards(req: AuthenticatedRequest, res: Response) {
     const userId = req.user.id;
-    cardControllerLogger.debug('Get today cards request received', { userId });
+    const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
+    cardControllerLogger.debug('Get today cards request received', { userId, limit });
     
     try {
-      const result = await cardService.getTodayCards(userId);
-      cardControllerLogger.debug('Today cards retrieved successfully', { userId });
+      const result = await cardService.getTodayCards(userId, limit);
+      cardControllerLogger.debug('Today cards retrieved successfully', { userId, limit });
       return sendResponse(res, result, 'success', 'Today cards fetched successfully');
     } catch (error) {
       cardControllerLogger.error('Failed to get today cards', { 
         userId,
+        limit,
         error: error instanceof Error ? error.message : 'Unknown error'
       });
       return sendResponse(res, null, 'error', error instanceof Error ? error.message : 'Failed to fetch today cards', 500);
@@ -247,8 +249,8 @@ export const CardController = {
 
   async reviewCard(req: AuthenticatedRequest, res: Response) {
     const userId = req.user.id;
-    const { cardId, isSuccess } = req.body;
-    cardControllerLogger.info('Review card request received', { userId, cardId, isSuccess });
+    const { cardId, isSuccess, responseQuality } = req.body;
+    cardControllerLogger.info('Review card request received', { userId, cardId, isSuccess, responseQuality });
     
     try {
       if (typeof isSuccess !== 'boolean') {
@@ -256,20 +258,27 @@ export const CardController = {
         return sendResponse(res, null, 'error', 'isSuccess must be a boolean', 400);
       }
 
-      const card = await cardService.reviewCard(userId, cardId, isSuccess);
+      // Validate responseQuality if provided
+      if (responseQuality !== undefined && (typeof responseQuality !== 'number' || responseQuality < 0 || responseQuality > 3)) {
+        cardControllerLogger.warn('Invalid responseQuality format', { userId, cardId, responseQuality });
+        return sendResponse(res, null, 'error', 'responseQuality must be a number between 0 and 3 (0=Again, 1=Hard, 2=Good, 3=Easy)', 400);
+      }
+
+      const card = await cardService.reviewCard(userId, cardId, isSuccess, responseQuality);
       
       if (!card) {
         cardControllerLogger.warn('Card not found for review', { userId, cardId });
         return sendResponse(res, null, 'error', 'Card not found', 404);
       }
 
-      cardControllerLogger.info('Card reviewed successfully', { userId, cardId, isSuccess });
+      cardControllerLogger.info('Card reviewed successfully', { userId, cardId, isSuccess, responseQuality });
       return sendResponse(res, card, 'success', 'Card reviewed successfully');
     } catch (error) {
       cardControllerLogger.error('Failed to review card', { 
         userId,
         cardId,
         isSuccess,
+        responseQuality,
         error: error instanceof Error ? error.message : 'Unknown error'
       });
       return sendResponse(res, null, 'error', error instanceof Error ? error.message : 'Failed to review card', 500);

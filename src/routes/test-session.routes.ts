@@ -7,6 +7,7 @@ import { validateBody, validateQuery, validateParams, CommonParams } from '../mi
 import { 
   TestSessionCreateSchema, 
   TestSessionCompleteSchema,
+  TestResultSubmissionSchema,
   PaginationSchema 
 } from '../schemas';
 
@@ -279,6 +280,6 @@ router.get('/:id', validateParams(CommonParams.id), withAuth(TestSessionControll
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.post('/:sessionId/results', validateParams(CommonParams.sessionId), validateBody(TestSessionCompleteSchema), withAuth(TestSessionController.submitTestResult));
+router.post('/:sessionId/results', validateParams(CommonParams.sessionId), validateBody(TestResultSubmissionSchema), withAuth(TestSessionController.submitTestResult));
 
 export default router; 

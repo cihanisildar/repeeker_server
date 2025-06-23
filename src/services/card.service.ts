@@ -290,16 +290,29 @@ export const cardService = {
     }
   },
 
-  async getTodayCards(userId: string) {
-    cardLogger.debug('Fetching today\'s cards', { userId });
+  async getTodayCards(userId: string, limit?: number) {
+    cardLogger.debug('Fetching today\'s cards', { userId, limit });
     try {
-      const cards = await cardRepository.findTodayCards(userId);
-      cardLogger.debug('Today\'s cards fetched successfully', { userId, count: cards?.cards?.length || 'N/A' });
+      // Validate limit parameter
+      if (limit !== undefined && (limit <= 0 || limit > 100)) {
+        cardLogger.warn('Invalid limit parameter for today\'s cards', { userId, limit });
+        throw new Error('Limit must be between 1 and 100');
+      }
+      
+      const cards = await cardRepository.findTodayCards(userId, limit);
+      cardLogger.debug('Today\'s cards fetched successfully', { 
+        userId, 
+        limit,
+        count: cards?.cards?.length || 0,
+        total: cards?.total || 0,
+        hasMore: cards?.hasMore || false
+      });
       return cards;
     } catch (error) {
       cardLogger.error('Failed to fetch today\'s cards', { 
         error: error instanceof Error ? error.message : 'Unknown error',
-        userId
+        userId,
+        limit
       });
       throw error;
     }
@@ -353,18 +366,25 @@ export const cardService = {
     }
   },
 
-  async reviewCard(userId: string, cardId: string, isSuccess: boolean) {
-    cardLogger.info('Reviewing card', { userId, cardId, isSuccess });
+  async reviewCard(userId: string, cardId: string, isSuccess: boolean, responseQuality?: number) {
+    cardLogger.info('Reviewing card', { userId, cardId, isSuccess, responseQuality });
     try {
-      const result = await cardRepository.reviewCard(userId, cardId, isSuccess);
-      cardLogger.info('Card reviewed successfully', { userId, cardId, isSuccess });
+      // Validate responseQuality if provided (0-3 scale: Again, Hard, Good, Easy)
+      if (responseQuality !== undefined && (responseQuality < 0 || responseQuality > 3)) {
+        cardLogger.warn('Invalid response quality', { userId, cardId, responseQuality });
+        throw new Error('Response quality must be between 0 and 3');
+      }
+      
+      const result = await cardRepository.reviewCard(userId, cardId, isSuccess, responseQuality);
+      cardLogger.info('Card reviewed successfully', { userId, cardId, isSuccess, responseQuality });
       return result;
     } catch (error) {
       cardLogger.error('Failed to review card', { 
         error: error instanceof Error ? error.message : 'Unknown error',
         userId,
         cardId,
-        isSuccess
+        isSuccess,
+        responseQuality
       });
       throw error;
     }

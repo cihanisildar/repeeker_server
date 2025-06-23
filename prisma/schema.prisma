@@ -107,6 +107,10 @@ model Card {
   nextReview   DateTime    @default(now())
   reviewStatus ReviewStatus @default(ACTIVE)
   reviewStep   Int         @default(-1)
+  // SM-2 Algorithm fields
+  easeFactor   Float       @default(2.5)  // Standard SM-2 starting ease factor
+  interval     Int         @default(1)    // Current interval in days
+  consecutiveCorrect Int   @default(0)    // Consecutive correct answers
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
   userId       String
@@ -179,6 +183,7 @@ model Review {
   cardId    String
   card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
   isSuccess Boolean
+  quality   Int      @default(3)  // Response quality: 0=Again, 1=Hard, 2=Good, 3=Easy
   createdAt DateTime @default(now())
 }
 

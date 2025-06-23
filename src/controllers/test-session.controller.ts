@@ -112,7 +112,7 @@ export const TestSessionController = {
   async submitTestResult(req: AuthenticatedRequest, res: Response) {
     const userId = req.user?.id;
     const { sessionId } = req.params;
-    const { cardId, isCorrect, timeSpent } = req.body;
+    const { cardId, isCorrect, timeSpent, userAnswer } = req.body;
     
     testSessionControllerLogger.info('Submit test result request received', {
       userId,
@@ -128,36 +128,13 @@ export const TestSessionController = {
         return sendResponse(res, null, 'error', 'Not authenticated', 401);
       }
 
-      // Validate required fields
-      if (!cardId) {
-        testSessionControllerLogger.warn('Submit test result missing cardId', { userId, sessionId });
-        return sendResponse(res, null, 'error', 'cardId is required', 400);
-      }
-      if (typeof isCorrect !== 'boolean') {
-        testSessionControllerLogger.warn('Submit test result invalid isCorrect', { 
-          userId, 
-          sessionId, 
-          cardId, 
-          isCorrect 
-        });
-        return sendResponse(res, null, 'error', 'isCorrect must be a boolean', 400);
-      }
-      if (typeof timeSpent !== 'number') {
-        testSessionControllerLogger.warn('Submit test result invalid timeSpent', { 
-          userId, 
-          sessionId, 
-          cardId, 
-          timeSpent 
-        });
-        return sendResponse(res, null, 'error', 'timeSpent must be a number', 400);
-      }
-
       const result = await testSessionService.submitTestResult({
         sessionId,
         cardId,
         isCorrect,
         timeSpent,
-        userId
+        userId,
+        userAnswer
       });
 
       if (!result) {
