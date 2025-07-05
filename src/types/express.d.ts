@@ -6,7 +6,8 @@ declare global {
       user?: {
         id: string;
         email: string;
-        name?: string | null;
+        firstName?: string | null;
+        lastName?: string | null;
         image?: string | null;
       };
       file?: {
@@ -29,7 +30,8 @@ export interface AuthenticatedRequest extends Request {
   user: {
     id: string;
     email: string;
-    name?: string | null;
+    firstName?: string | null;
+    lastName?: string | null;
     image?: string | null;
   };
 } 

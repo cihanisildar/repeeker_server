@@ -6,8 +6,8 @@ import bcrypt from 'bcryptjs';
 const userLogger = createModuleLogger('USER');
 
 export const userService = {
-  async createUser(userData: { email: string; password: string; name?: string }) {
-    userLogger.info('Creating new user', { email: userData.email, hasName: !!userData.name });
+  async createUser(userData: { email: string; password: string; firstName?: string; lastName?: string }) {
+    userLogger.info('Creating new user', { email: userData.email, hasFirstName: !!userData.firstName, hasLastName: !!userData.lastName });
     
     try {
       const existingUser = await userRepository.findByEmail(userData.email);
@@ -53,7 +53,7 @@ export const userService = {
     }
   },
 
-  async updateUser(id: string, userData: Partial<{ email: string; name: string }>) {
+  async updateUser(id: string, userData: Partial<{ email: string; firstName: string; lastName: string }>) {
     userLogger.info('Updating user', { userId: id, updateFields: Object.keys(userData) });
     
     try {

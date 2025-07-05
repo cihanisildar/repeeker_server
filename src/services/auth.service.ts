@@ -6,11 +6,12 @@ import { AppError } from '../middlewares/error.middleware';
 
 export const authService = {
   async register(data: {
-    name?: string;
+    firstName?: string;
+    lastName?: string;
     email: string;
     password: string;
   }) {
-    authLogger.info('User registration attempt', { email: data.email, hasName: !!data.name });
+    authLogger.info('User registration attempt', { email: data.email, hasFirstName: !!data.firstName, hasLastName: !!data.lastName });
     
     try {
       const existingUser = await userRepository.findByEmail(data.email);
@@ -37,7 +38,8 @@ export const authService = {
       return {
         user: {
           id: user.id,
-          name: user.name,
+          firstName: user.firstName,
+          lastName: user.lastName,
           email: user.email,
         },
         token,
@@ -81,7 +83,8 @@ export const authService = {
         user: {
           id: user.id,
           email: user.email,
-          name: user.name,
+          firstName: user.firstName,
+          lastName: user.lastName,
           image: user.image
         },
         token,
@@ -97,7 +100,8 @@ export const authService = {
 
   async oauthLogin(oauthData: {
     email: string;
-    name?: string;
+    firstName?: string;
+    lastName?: string;
     image?: string;
     provider: string;
     providerId: string;
@@ -113,7 +117,8 @@ export const authService = {
         // Create new user if not found
         user = await userRepository.create({
           email: oauthData.email,
-          name: oauthData.name || '',
+          firstName: oauthData.firstName || '',
+          lastName: oauthData.lastName || '',
           password: '', // No password for OAuth users
         });
         authLogger.info('Created new user for OAuth', { userId: user.id, email: oauthData.email });
@@ -134,7 +139,8 @@ export const authService = {
         user: {
           id: user.id,
           email: user.email,
-          name: user.name,
+          firstName: user.firstName,
+          lastName: user.lastName,
           image: user.image
         },
         token,
@@ -174,13 +180,15 @@ export const authService = {
   async syncNextAuthUser(nextAuthUser: {
     id: string;
     email: string;
-    name?: string;
+    firstName?: string;
+    lastName?: string;
     image?: string;
   }) {
     authLogger.info('Starting NextAuth user sync', {
       googleId: nextAuthUser.id,
       email: nextAuthUser.email,
-      name: nextAuthUser.name,
+      firstName: nextAuthUser.firstName,
+      lastName: nextAuthUser.lastName,
       hasImage: !!nextAuthUser.image
     });
     
@@ -195,7 +203,8 @@ export const authService = {
         try {
           user = await userRepository.create({
             email: nextAuthUser.email,
-            name: nextAuthUser.name || '',
+            firstName: nextAuthUser.firstName || '',
+            lastName: nextAuthUser.lastName || '',
             password: '', // No password for OAuth users
             googleId: nextAuthUser.id, // Store the Google ID
           });
@@ -212,16 +221,18 @@ export const authService = {
         authLogger.debug('Found existing user', {
           userId: user.id,
           email: user.email,
-          name: user.name,
+          firstName: user.firstName,
+          lastName: user.lastName,
           googleId: user.googleId
         });
         
-        // Update user info if needed (e.g., name or image changed)
-        if (user.name !== nextAuthUser.name || user.image !== nextAuthUser.image || user.googleId !== nextAuthUser.id) {
+        // Update user info if needed (e.g., firstName, lastName or image changed)
+        if (user.firstName !== nextAuthUser.firstName || user.lastName !== nextAuthUser.lastName || user.image !== nextAuthUser.image || user.googleId !== nextAuthUser.id) {
           authLogger.debug('Updating user info during sync', { userId: user.id });
           try {
             user = await userRepository.update(user.id, {
-              name: nextAuthUser.name || user.name,
+              firstName: nextAuthUser.firstName || user.firstName,
+              lastName: nextAuthUser.lastName || user.lastName,
               image: nextAuthUser.image || user.image,
               googleId: nextAuthUser.id, // Ensure Google ID is set
             });

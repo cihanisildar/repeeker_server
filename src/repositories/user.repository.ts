@@ -42,7 +42,8 @@ export const userRepository = {
         },
         select: {
           id: true,
-          name: true,
+          firstName: true,
+          lastName: true,
           email: true,
           emailVerified: true,
           image: true,
@@ -75,14 +76,16 @@ export const userRepository = {
   },
 
   async create(data: {
-    name?: string;
+    firstName?: string;
+    lastName?: string;
     email: string;
     password: string;
     googleId?: string;
   }): Promise<User> {
     userRepositoryLogger.debug('Creating user', { 
       email: data.email, 
-      name: data.name, 
+      firstName: data.firstName, 
+      lastName: data.lastName,
       googleId: data.googleId,
       hasPassword: !!data.password
     });
@@ -95,14 +98,16 @@ export const userRepository = {
       userRepositoryLogger.info('Successfully created user', { 
         userId: user.id,
         email: user.email,
-        name: user.name
+        firstName: user.firstName,
+        lastName: user.lastName
       });
       
       return user;
     } catch (error) {
       userRepositoryLogger.error('Failed to create user', { 
         email: data.email,
-        name: data.name,
+        firstName: data.firstName,
+        lastName: data.lastName,
         googleId: data.googleId,
         error: error instanceof Error ? error.message : 'Unknown error'
       });
@@ -118,7 +123,8 @@ export const userRepository = {
         where: { id },
         select: {
           id: true,
-          name: true,
+          firstName: true,
+          lastName: true,
           email: true,
           emailVerified: true,
           image: true,
@@ -157,7 +163,8 @@ export const userRepository = {
         where: { id },
         select: {
           id: true,
-          name: true,
+          firstName: true,
+          lastName: true,
           email: true,
           emailVerified: true,
           image: true,
@@ -178,7 +185,8 @@ export const userRepository = {
           where: { googleId: id },
           select: {
             id: true,
-            name: true,
+            firstName: true,
+            lastName: true,
             email: true,
             emailVerified: true,
             image: true,

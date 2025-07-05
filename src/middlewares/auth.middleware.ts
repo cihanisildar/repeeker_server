@@ -34,8 +34,9 @@ export const authMiddleware = async (
       req.user = {
         id: dbUser.id,
         email: dbUser.email || '',
-        name: dbUser.name || undefined,
-        image: dbUser.image || undefined
+        firstName: dbUser.firstName || null,
+        lastName: dbUser.lastName || null,
+        image: dbUser.image || null
       };
     } catch (syncError) {
       logger.error('Error syncing NextAuth user:', syncError);

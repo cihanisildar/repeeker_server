@@ -9,10 +9,10 @@ const authControllerLogger = createModuleLogger('AUTH_CONTROLLER');
 
 export const AuthController = {
   register: asyncHandler(async (req: Request, res: Response) => {
-    const { name, email, password } = req.body;
-    authControllerLogger.info('Registration request received', { email, hasName: !!name });
+    const { firstName, lastName, email, password } = req.body;
+    authControllerLogger.info('Registration request received', { email, hasFirstName: !!firstName, hasLastName: !!lastName });
     
-    const result = await authService.register({ name, email, password });
+    const result = await authService.register({ firstName, lastName, email, password });
     authControllerLogger.info('Registration successful', { email, userId: result.user.id });
     return sendResponse(res, result, 'success', 'User registered successfully', 201);
   }),
@@ -27,12 +27,13 @@ export const AuthController = {
   }),
 
   oauthLogin: asyncHandler(async (req: Request, res: Response) => {
-    const { email, name, image, provider, providerId } = req.body;
+    const { email, firstName, lastName, image, provider, providerId } = req.body;
     authControllerLogger.info('OAuth login request received', { email, provider });
     
     const result = await authService.oauthLogin({
       email,
-      name,
+      firstName,
+      lastName,
       image,
       provider,
       providerId
@@ -57,11 +58,12 @@ export const AuthController = {
   },
 
   syncGoogleUser: asyncHandler(async (req: Request, res: Response) => {
-    const { id, email, name, image } = req.body;
+    const { id, email, firstName, lastName, image } = req.body;
     authControllerLogger.info('Google user sync request received', { 
       googleId: id, 
       email, 
-      hasName: !!name, 
+      hasFirstName: !!firstName, 
+      hasLastName: !!lastName, 
       hasImage: !!image 
     });
     
@@ -69,7 +71,8 @@ export const AuthController = {
     const user = await authService.syncNextAuthUser({
       id,
       email,
-      name,
+      firstName,
+      lastName,
       image
     });
 
@@ -83,7 +86,8 @@ export const AuthController = {
       user: {
         id: user.id,
         email: user.email,
-        name: user.name,
+        firstName: user.firstName,
+        lastName: user.lastName,
         image: user.image,
         googleId: user.googleId
       }
@@ -96,7 +100,8 @@ export const AuthController = {
     const testGoogleUser = {
       id: 'test-google-id-' + Date.now(),
       email: 'test-google-' + Date.now() + '@example.com',
-      name: 'Test Google User',
+      firstName: 'Test',
+      lastName: 'GoogleUser',
       image: 'https://example.com/test-image.jpg'
     };
 
@@ -115,7 +120,8 @@ export const AuthController = {
       user: {
         id: user.id,
         email: user.email,
-        name: user.name,
+        firstName: user.firstName,
+        lastName: user.lastName,
         image: user.image,
         googleId: user.googleId
       }
