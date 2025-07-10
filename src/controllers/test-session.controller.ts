@@ -112,7 +112,7 @@ export const TestSessionController = {
   async submitTestResult(req: AuthenticatedRequest, res: Response) {
     const userId = req.user?.id;
     const { sessionId } = req.params;
-    const { cardId, isCorrect, timeSpent, userAnswer } = req.body;
+    const { cardId, isCorrect, timeSpent } = req.body;
     
     testSessionControllerLogger.info('Submit test result request received', {
       userId,
@@ -133,8 +133,7 @@ export const TestSessionController = {
         cardId,
         isCorrect,
         timeSpent,
-        userId,
-        userAnswer
+        userId
       });
 
       if (!result) {

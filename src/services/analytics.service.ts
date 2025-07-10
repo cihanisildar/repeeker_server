@@ -380,7 +380,7 @@ export const analyticsService = {
   /**
    * Helper function to group dates by period
    */
-  private getPeriodKey(date: Date, period: 'daily' | 'weekly' | 'monthly'): string {
+  getPeriodKey(date: Date, period: 'daily' | 'weekly' | 'monthly'): string {
     switch (period) {
       case 'daily':
         return date.toISOString().split('T')[0]; // YYYY-MM-DD
