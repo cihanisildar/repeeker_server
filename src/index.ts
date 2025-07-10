@@ -17,28 +17,38 @@ const port = parseInt(process.env.PORT || '3000', 10);
 // Middlewares
 app.use(helmet());
 app.use(generalRateLimit);
+
+// Debug CORS configuration
+const corsOrigins = (() => {
+  const defaultOrigins = [
+    "https://www.repeeker.com",
+    "https://api.repeeker.com",
+    "http://localhost:3000", 
+    "http://localhost:3001", 
+  ];
+  
+  if (process.env.CORS_ORIGIN) {
+    const envOrigins = process.env.CORS_ORIGIN.split(',');
+    // In development, always include localhost origins
+    if (process.env.NODE_ENV === 'development') {
+      const devOrigins = ["http://localhost:3000", "http://localhost:3001"];
+      return [...new Set([...envOrigins, ...devOrigins])];
+    }
+    return envOrigins;
+  }
+  
+  return defaultOrigins;
+})();
+
+console.log('=== CORS CONFIGURATION ===');
+console.log('CORS Origins:', corsOrigins);
+console.log('Environment:', process.env.NODE_ENV);
+console.log('CORS_ORIGIN env var:', process.env.CORS_ORIGIN);
+console.log('========================');
+
 app.use(
   cors({
-    origin: (() => {
-      const defaultOrigins = [
-        "https://www.repeeker.com",
-        "https://api.repeeker.com",
-        "http://localhost:3000", 
-        "http://localhost:3001", 
-      ];
-      
-      if (process.env.CORS_ORIGIN) {
-        const envOrigins = process.env.CORS_ORIGIN.split(',');
-        // In development, always include localhost origins
-        if (process.env.NODE_ENV === 'development') {
-          const devOrigins = ["http://localhost:3000", "http://localhost:3001"];
-          return [...new Set([...envOrigins, ...devOrigins])];
-        }
-        return envOrigins;
-      }
-      
-      return defaultOrigins;
-    })(),
+    origin: corsOrigins,
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: [
@@ -91,11 +101,29 @@ app.get("/health", (req, res) => {
 
 app.get("/test", (req, res) => {
   console.log("=== TEST ENDPOINT HIT ===");
+  console.log("Request headers:", req.headers);
+  console.log("Origin:", req.headers.origin);
   res.json({
     message: "Server is working",
     timestamp: new Date().toISOString(),
     origin: req.headers.origin,
     cors_origin: process.env.CORS_ORIGIN,
+    allowed_origins: corsOrigins,
+  });
+});
+
+app.get("/cors-test", (req, res) => {
+  console.log("=== CORS TEST ENDPOINT HIT ===");
+  console.log("Request headers:", req.headers);
+  console.log("Origin:", req.headers.origin);
+  console.log("Method:", req.method);
+  
+  res.json({
+    message: "CORS test successful",
+    timestamp: new Date().toISOString(),
+    origin: req.headers.origin,
+    method: req.method,
+    headers: req.headers,
   });
 });
 
