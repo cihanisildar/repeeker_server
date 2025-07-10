@@ -22,8 +22,7 @@ app.use(
     origin: (() => {
       const defaultOrigins = [
         "https://www.repeeker.com",
-        "repeekerserver-production.up.railway.app", 
-        "https://www.repeeker.com/", 
+        "https://api.repeeker.com",
         "http://localhost:3000", 
         "http://localhost:3001", 
       ];
