@@ -22,7 +22,7 @@ export const generalRateLimit = rateLimit({
 
 export const authRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000, 
-  max: 5, 
+  max: process.env.NODE_ENV === 'development' ? 100 : 5, 
   message: rateLimitMessage,
   standardHeaders: true,
   legacyHeaders: false,

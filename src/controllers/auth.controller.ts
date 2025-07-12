@@ -14,7 +14,21 @@ export const AuthController = {
     
     const result = await authService.register({ firstName, lastName, email, password });
     authControllerLogger.info('Registration successful', { email, userId: result.user.id });
-    return sendResponse(res, result, 'success', 'User registered successfully', 201);
+    const isMobile = req.headers['x-client-type'] === 'mobile';
+    if (isMobile) {
+      return sendResponse(res, result, 'success', 'User registered successfully', 201);
+    } else {
+      if ((result as any).rp_refreshToken) {
+        res.cookie('rp_refreshToken', (result as any).rp_refreshToken, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+        });
+        delete (result as any).rp_refreshToken;
+      }
+      return sendResponse(res, result, 'success', 'User registered successfully', 201);
+    }
   }),
 
   login: asyncHandler(async (req: Request, res: Response) => {
@@ -23,16 +37,49 @@ export const AuthController = {
     
     const result = await authService.login(email, password);
     authControllerLogger.info('Login successful', { email, userId: result.user.id });
-    return sendResponse(res, result, 'success', 'Login successful');
+    const isMobile = req.headers['x-client-type'] === 'mobile';
+    if (isMobile) {
+      return sendResponse(res, result, 'success', 'Login successful');
+    } else {
+      if ((result as any).rp_refreshToken) {
+        res.cookie('rp_refreshToken', (result as any).rp_refreshToken, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+        });
+        delete (result as any).rp_refreshToken;
+      }
+      return sendResponse(res, result, 'success', 'Login successful');
+    }
   }),
 
   refreshToken: asyncHandler(async (req: Request, res: Response) => {
-    const { rp_refreshToken } = req.body;
-    authControllerLogger.info('Token refresh request received');
-    
-    const result = await authService.refreshToken(rp_refreshToken);
-    authControllerLogger.info('Token refresh successful', { userId: result.user.id });
-    return sendResponse(res, result, 'success', 'Token refreshed successfully');
+    const isMobile = req.headers['x-client-type'] === 'mobile';
+    let refreshToken: string | undefined;
+    if (isMobile) {
+      refreshToken = req.body.rp_refreshToken;
+    } else {
+      refreshToken = req.cookies.rp_refreshToken;
+    }
+    if (!refreshToken) {
+      return sendResponse(res, null, 'error', 'No refresh token provided', 401);
+    }
+    const result = await authService.refreshToken(refreshToken);
+    if (isMobile) {
+      return sendResponse(res, result, 'success', 'Token refreshed successfully');
+    } else {
+      if ((result as any).rp_refreshToken) {
+        res.cookie('rp_refreshToken', (result as any).rp_refreshToken, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+        });
+        delete (result as any).rp_refreshToken;
+      }
+      return sendResponse(res, result, 'success', 'Token refreshed successfully');
+    }
   }),
 
   oauthLogin: asyncHandler(async (req: Request, res: Response) => {
@@ -49,7 +96,21 @@ export const AuthController = {
     });
     
     authControllerLogger.info('OAuth login successful', { email, provider, userId: result.user.id });
-    return sendResponse(res, result, 'success', 'OAuth login successful');
+    const isMobile = req.headers['x-client-type'] === 'mobile';
+    if (isMobile) {
+      return sendResponse(res, result, 'success', 'OAuth login successful');
+    } else {
+      if ((result as any).rp_refreshToken) {
+        res.cookie('rp_refreshToken', (result as any).rp_refreshToken, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+        });
+        delete (result as any).rp_refreshToken;
+      }
+      return sendResponse(res, result, 'success', 'OAuth login successful');
+    }
   }),
 
   getCurrentUser: async (req: AuthenticatedRequest, res: Response) => {
@@ -85,22 +146,46 @@ export const AuthController = {
       image
     });
 
-    authControllerLogger.info('Google user sync completed successfully', {
-      userId: user.id,
-      email: user.email,
-      googleId: user.googleId
-    });
+    // Generate tokens for the user
+    const tokens = req.user && req.user.id === user.id
+      ? undefined // If already authenticated, don't issue new tokens
+      : require('../services/token.service').tokenService.generateTokenPair({ id: user.id, email: user.email });
 
-    return sendResponse(res, {
-      user: {
-        id: user.id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        image: user.image,
-        googleId: user.googleId
+    const isMobile = req.headers['x-client-type'] === 'mobile';
+    if (isMobile && tokens) {
+      return sendResponse(res, {
+        user: {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          image: user.image,
+          googleId: user.googleId
+        },
+        ...tokens
+      }, 'success', 'Google user synced successfully');
+    } else {
+      if (tokens && tokens.rp_refreshToken) {
+        res.cookie('rp_refreshToken', tokens.rp_refreshToken, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+        });
+        delete (tokens as any).rp_refreshToken;
       }
-    }, 'success', 'Google user synced successfully');
+      return sendResponse(res, {
+        user: {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          image: user.image,
+          googleId: user.googleId
+        },
+        ...(tokens || {})
+      }, 'success', 'Google user synced successfully');
+    }
   }),
 
   testGoogleUserCreate: asyncHandler(async (req: Request, res: Response) => {

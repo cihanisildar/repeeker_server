@@ -28,6 +28,10 @@ export const authService = {
         password: hashedPassword,
       });
 
+      if (!user.email) {
+        throw new AppError(400, 'User email is required for authentication');
+      }
+
       const tokens = tokenService.generateTokenPair({
         id: user.id,
         email: user.email
@@ -69,6 +73,10 @@ export const authService = {
       if (!isValidPassword) {
         authLogger.warn('Login failed - invalid password', { email, userId: user.id });
         throw new AppError(401, 'Invalid credentials');
+      }
+
+      if (!user.email) {
+        throw new AppError(400, 'User email is required for authentication');
       }
 
       const tokens = tokenService.generateTokenPair({
@@ -125,6 +133,10 @@ export const authService = {
         authLogger.info('Found existing user for OAuth login', { userId: user.id, email: oauthData.email });
       }
       
+      if (!user.email) {
+        throw new AppError(400, 'User email is required for authentication');
+      }
+
       const tokens = tokenService.generateTokenPair({
         id: user.id,
         email: user.email
@@ -163,6 +175,10 @@ export const authService = {
       if (!user) {
         authLogger.warn('Refresh failed - user not found', { userId: decoded.id });
         throw new AppError(401, 'Invalid refresh token');
+      }
+
+      if (!user.email) {
+        throw new AppError(400, 'User email is required for authentication');
       }
 
       const tokens = tokenService.generateTokenPair({
