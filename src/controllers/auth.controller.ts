@@ -26,6 +26,15 @@ export const AuthController = {
     return sendResponse(res, result, 'success', 'Login successful');
   }),
 
+  refreshToken: asyncHandler(async (req: Request, res: Response) => {
+    const { rp_refreshToken } = req.body;
+    authControllerLogger.info('Token refresh request received');
+    
+    const result = await authService.refreshToken(rp_refreshToken);
+    authControllerLogger.info('Token refresh successful', { userId: result.user.id });
+    return sendResponse(res, result, 'success', 'Token refreshed successfully');
+  }),
+
   oauthLogin: asyncHandler(async (req: Request, res: Response) => {
     const { email, firstName, lastName, image, provider, providerId } = req.body;
     authControllerLogger.info('OAuth login request received', { email, provider });

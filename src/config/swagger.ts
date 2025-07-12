@@ -16,8 +16,8 @@ const options: Options = {
     servers: [
       {
         url: process.env.NODE_ENV === 'production' 
-          ? 'https://repeekerserver-production.up.railway.app'
-          : 'http://localhost:8080',
+          ? 'https://api.repeeker.com'
+          : 'http://localhost:3001',
         description: process.env.NODE_ENV === 'production' ? 'Production server' : 'Development server',
       },
     ],

@@ -8,7 +8,8 @@ import {
   RegisterSchema, 
   LoginSchema, 
   OAuthLoginSchema, 
-  GoogleUserSyncSchema 
+  GoogleUserSyncSchema,
+  RefreshTokenSchema
 } from "../schemas";
 
 const router = Router();
@@ -58,8 +59,13 @@ router.get("/test", (req, res) => {
  *             required:
  *               - email
  *               - password
- *               - name
  *             properties:
+ *               firstName:
+ *                 type: string
+ *                 example: "John"
+ *               lastName:
+ *                 type: string
+ *                 example: "Doe"
  *               email:
  *                 type: string
  *                 format: email
@@ -68,16 +74,27 @@ router.get("/test", (req, res) => {
  *                 type: string
  *                 minLength: 6
  *                 example: "password123"
- *               name:
- *                 type: string
- *                 example: "John Doe"
  *     responses:
  *       201:
  *         description: User registered successfully
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/Success'
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     user:
+ *                       $ref: '#/components/schemas/User'
+ *                     rp_accessToken:
+ *                       type: string
+ *                     rp_refreshToken:
+ *                       type: string
+ *                 status:
+ *                   type: string
+ *                 message:
+ *                   type: string
  *       400:
  *         description: Invalid input
  *         content:
@@ -99,7 +116,7 @@ router.post("/register", authRateLimit, validateBody(RegisterSchema), AuthContro
  *   post:
  *     tags: [Authentication]
  *     summary: Login user
- *     description: Authenticate user and return JWT token
+ *     description: Authenticate user and return JWT tokens
  *     requestBody:
  *       required: true
  *       content:
@@ -125,11 +142,19 @@ router.post("/register", authRateLimit, validateBody(RegisterSchema), AuthContro
  *             schema:
  *               type: object
  *               properties:
- *                 token:
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     user:
+ *                       $ref: '#/components/schemas/User'
+ *                     rp_accessToken:
+ *                       type: string
+ *                     rp_refreshToken:
+ *                       type: string
+ *                 status:
  *                   type: string
- *                   description: JWT authentication token
- *                 user:
- *                   $ref: '#/components/schemas/User'
+ *                 message:
+ *                   type: string
  *       401:
  *         description: Invalid credentials
  *         content:
@@ -141,11 +166,11 @@ router.post("/login", authRateLimit, validateBody(LoginSchema), AuthController.l
 
 /**
  * @swagger
- * /api/auth/oauth:
+ * /api/auth/refresh:
  *   post:
  *     tags: [Authentication]
- *     summary: OAuth login
- *     description: Authenticate user via OAuth (Google)
+ *     summary: Refresh access token
+ *     description: Get new access token using refresh token
  *     requestBody:
  *       required: true
  *       content:
@@ -153,11 +178,80 @@ router.post("/login", authRateLimit, validateBody(LoginSchema), AuthController.l
  *           schema:
  *             type: object
  *             required:
- *               - token
+ *               - rp_refreshToken
  *             properties:
- *               token:
+ *               rp_refreshToken:
  *                 type: string
- *                 description: OAuth token from provider
+ *                 description: Refresh token
+ *                 example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+ *     responses:
+ *       200:
+ *         description: Token refresh successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     user:
+ *                       $ref: '#/components/schemas/User'
+ *                     rp_accessToken:
+ *                       type: string
+ *                     rp_refreshToken:
+ *                       type: string
+ *                 status:
+ *                   type: string
+ *                 message:
+ *                   type: string
+ *       401:
+ *         description: Invalid refresh token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.post("/refresh", authRateLimit, validateBody(RefreshTokenSchema), AuthController.refreshToken);
+
+/**
+ * @swagger
+ * /api/auth/oauth:
+ *   post:
+ *     tags: [Authentication]
+ *     summary: OAuth login
+ *     description: Authenticate user via OAuth (Google, etc.)
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - provider
+ *               - providerId
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: "user@example.com"
+ *               firstName:
+ *                 type: string
+ *                 example: "John"
+ *               lastName:
+ *                 type: string
+ *                 example: "Doe"
+ *               image:
+ *                 type: string
+ *                 format: url
+ *                 example: "https://example.com/image.jpg"
+ *               provider:
+ *                 type: string
+ *                 example: "google"
+ *               providerId:
+ *                 type: string
+ *                 example: "google-oauth-id"
  *     responses:
  *       200:
  *         description: OAuth login successful
@@ -166,13 +260,21 @@ router.post("/login", authRateLimit, validateBody(LoginSchema), AuthController.l
  *             schema:
  *               type: object
  *               properties:
- *                 token:
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     user:
+ *                       $ref: '#/components/schemas/User'
+ *                     rp_accessToken:
+ *                       type: string
+ *                     rp_refreshToken:
+ *                       type: string
+ *                 status:
  *                   type: string
- *                   description: JWT authentication token
- *                 user:
- *                   $ref: '#/components/schemas/User'
+ *                 message:
+ *                   type: string
  *       401:
- *         description: Invalid OAuth token
+ *         description: Invalid OAuth credentials
  *         content:
  *           application/json:
  *             schema:
@@ -194,20 +296,46 @@ router.post("/oauth", authRateLimit, validateBody(OAuthLoginSchema), AuthControl
  *           schema:
  *             type: object
  *             required:
- *               - googleToken
+ *               - id
+ *               - email
  *             properties:
- *               googleToken:
+ *               id:
  *                 type: string
- *                 description: Google authentication token
+ *                 description: Google ID
+ *                 example: "google-oauth-id"
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: "user@example.com"
+ *               firstName:
+ *                 type: string
+ *                 example: "John"
+ *               lastName:
+ *                 type: string
+ *                 example: "Doe"
+ *               image:
+ *                 type: string
+ *                 format: url
+ *                 example: "https://example.com/image.jpg"
  *     responses:
  *       200:
  *         description: Google user synced successfully
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/Success'
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     user:
+ *                       $ref: '#/components/schemas/User'
+ *                 status:
+ *                   type: string
+ *                 message:
+ *                   type: string
  *       400:
- *         description: Invalid Google token
+ *         description: Invalid Google user data
  *         content:
  *           application/json:
  *             schema:

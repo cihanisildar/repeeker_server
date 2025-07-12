@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { userRepository } from '../repositories/user.repository';
 import { authLogger } from '../utils/logger';
 import { AppError } from '../middlewares/error.middleware';
+import { tokenService } from './token.service';
 
 export const authService = {
   async register(data: {
@@ -27,11 +28,10 @@ export const authService = {
         password: hashedPassword,
       });
 
-      const token = jwt.sign(
-        { id: user.id, email: user.email },
-        process.env.JWT_SECRET as string,
-        { expiresIn: '7d' }
-      );
+      const tokens = tokenService.generateTokenPair({
+        id: user.id,
+        email: user.email
+      });
 
       authLogger.info('User registered successfully', { userId: user.id, email: user.email });
 
@@ -42,7 +42,7 @@ export const authService = {
           lastName: user.lastName,
           email: user.email,
         },
-        token,
+        ...tokens
       };
     } catch (error) {
       authLogger.error('Registration failed', { 
@@ -71,11 +71,10 @@ export const authService = {
         throw new AppError(401, 'Invalid credentials');
       }
 
-      const token = jwt.sign(
-        { id: user.id, email: user.email },
-        process.env.JWT_SECRET as string,
-        { expiresIn: '7d' }
-      );
+      const tokens = tokenService.generateTokenPair({
+        id: user.id,
+        email: user.email
+      });
 
       authLogger.info('User logged in successfully', { userId: user.id, email: user.email });
 
@@ -87,7 +86,7 @@ export const authService = {
           lastName: user.lastName,
           image: user.image
         },
-        token,
+        ...tokens
       };
     } catch (error) {
       authLogger.error('Login failed', { 
@@ -126,12 +125,10 @@ export const authService = {
         authLogger.info('Found existing user for OAuth login', { userId: user.id, email: oauthData.email });
       }
       
-      // Generate custom JWT token
-      const token = jwt.sign(
-        { id: user.id, email: user.email },
-        process.env.JWT_SECRET as string,
-        { expiresIn: '7d' }
-      );
+      const tokens = tokenService.generateTokenPair({
+        id: user.id,
+        email: user.email
+      });
 
       authLogger.info('OAuth login successful', { userId: user.id, email: user.email, provider: oauthData.provider });
 
@@ -143,12 +140,50 @@ export const authService = {
           lastName: user.lastName,
           image: user.image
         },
-        token,
+        ...tokens
       };
     } catch (error) {
       authLogger.error('OAuth login failed', { 
         email: oauthData.email,
         provider: oauthData.provider,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      throw error;
+    }
+  },
+
+  async refreshToken(refreshToken: string) {
+    authLogger.info('Token refresh attempt');
+    
+    try {
+      const decoded = tokenService.verifyRefreshToken(refreshToken);
+      
+      const user = await userRepository.findById(decoded.id);
+      
+      if (!user) {
+        authLogger.warn('Refresh failed - user not found', { userId: decoded.id });
+        throw new AppError(401, 'Invalid refresh token');
+      }
+
+      const tokens = tokenService.generateTokenPair({
+        id: user.id,
+        email: user.email
+      });
+
+      authLogger.info('Token refresh successful', { userId: user.id, email: user.email });
+
+      return {
+        user: {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          image: user.image
+        },
+        ...tokens
+      };
+    } catch (error) {
+      authLogger.error('Token refresh failed', { 
         error: error instanceof Error ? error.message : 'Unknown error'
       });
       throw error;

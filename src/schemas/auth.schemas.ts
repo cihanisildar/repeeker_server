@@ -31,8 +31,13 @@ export const GoogleUserSyncSchema = z.object({
   image: z.string().url().optional(),
 });
 
+export const RefreshTokenSchema = z.object({
+  rp_refreshToken: z.string().min(1, 'Refresh token is required'),
+});
+
 // Type exports
 export type Register = z.infer<typeof RegisterSchema>;
 export type Login = z.infer<typeof LoginSchema>;
 export type OAuthLogin = z.infer<typeof OAuthLoginSchema>;
-export type GoogleUserSync = z.infer<typeof GoogleUserSyncSchema>; 
+export type GoogleUserSync = z.infer<typeof GoogleUserSyncSchema>;
+export type RefreshToken = z.infer<typeof RefreshTokenSchema>; 

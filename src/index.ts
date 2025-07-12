@@ -14,6 +14,9 @@ import routes from "./routes";
 const app = express();
 const port = parseInt(process.env.PORT || '3000', 10);
 
+// Trust proxy for rate limiting behind reverse proxies
+app.set('trust proxy', 1);
+
 // Middlewares
 app.use(helmet());
 app.use(generalRateLimit);
@@ -28,7 +31,7 @@ const corsOrigins = (() => {
   ];
   
   if (process.env.CORS_ORIGIN) {
-    const envOrigins = process.env.CORS_ORIGIN.split(',');
+    const envOrigins = process.env.CORS_ORIGIN.split(',').map(origin => origin.trim());
     // In development, always include localhost origins
     if (process.env.NODE_ENV === 'development') {
       const devOrigins = ["http://localhost:3000", "http://localhost:3001"];

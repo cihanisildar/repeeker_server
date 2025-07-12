@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { logger } from '../utils/logger';
 import { authService } from '../services/auth.service';
+import { tokenService } from '../services/token.service';
 
 export const authMiddleware = async (
   req: Request,
@@ -21,12 +22,27 @@ export const authMiddleware = async (
       return res.status(401).json({ message: 'No token provided' });
     }
 
-    const decoded = jwt.verify(token, process.env.NEXTAUTH_SECRET as string) as {
-      id: string;
-      email: string;
-      name?: string;
-      picture?: string;
-    };
+    let decoded: { id: string; email: string };
+
+    try {
+      // First try to verify as access token
+      const accessTokenPayload = tokenService.verifyAccessToken(token);
+      decoded = {
+        id: accessTokenPayload.id,
+        email: accessTokenPayload.email
+      };
+    } catch (accessError) {
+      // If access token fails, try legacy token for backward compatibility
+      try {
+        decoded = tokenService.verifyLegacyToken(token);
+      } catch (legacyError) {
+        logger.error('Token verification failed for both access and legacy tokens', {
+          accessError: accessError instanceof Error ? accessError.message : 'Unknown error',
+          legacyError: legacyError instanceof Error ? legacyError.message : 'Unknown error'
+        });
+        return res.status(401).json({ message: 'Invalid token' });
+      }
+    }
 
     try {
       const dbUser = await authService.syncNextAuthUser(decoded);
